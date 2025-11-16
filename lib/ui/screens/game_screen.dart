@@ -323,13 +323,34 @@ class _BlankBoardsViewState extends State<_BlankBoardsView> {
       final timeline = widget.gameProvider.game.getTimeline(0);
       final currentTurnCount = timeline.end;
 
-      // Check if a new board was added
-      if (currentTurnCount > _previousTurnCount) {
-        // A new board was added - scroll to it after the frame is built
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _scrollToNewBoard();
-        });
+      print(
+        'DEBUG GameScreen._onGameStateChanged: currentTurnCount=$currentTurnCount, _previousTurnCount=$_previousTurnCount',
+      );
+
+      // Check if a new board was added OR if the turn count changed (could be undo)
+      if (currentTurnCount != _previousTurnCount) {
+        print(
+          'DEBUG GameScreen._onGameStateChanged: Turn count changed from $_previousTurnCount to $currentTurnCount',
+        );
+        if (currentTurnCount > _previousTurnCount) {
+          // A new board was added - scroll to it after the frame is built
+          print(
+            'DEBUG GameScreen._onGameStateChanged: New board added - will scroll to it',
+          );
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _scrollToNewBoard();
+          });
+        } else {
+          // Turn count decreased (undo happened) - update tracking but don't scroll
+          print(
+            'DEBUG GameScreen._onGameStateChanged: Turn count decreased (undo) - updating _previousTurnCount',
+          );
+        }
         _previousTurnCount = currentTurnCount;
+      } else {
+        print(
+          'DEBUG GameScreen._onGameStateChanged: Turn count unchanged - no scroll needed',
+        );
       }
 
       // Check for checkmate and show dialog
@@ -343,14 +364,24 @@ class _BlankBoardsViewState extends State<_BlankBoardsView> {
   }
 
   void _scrollToNewBoard() {
+    print(
+      'DEBUG GameScreen._scrollToNewBoard: Attempting to scroll to new board',
+    );
     if (_horizontalScrollController.hasClients &&
         _horizontalScrollController.position.maxScrollExtent > 0) {
       // Scroll to the rightmost board
       final maxScroll = _horizontalScrollController.position.maxScrollExtent;
+      print(
+        'DEBUG GameScreen._scrollToNewBoard: Scrolling to maxScroll=$maxScroll',
+      );
       _horizontalScrollController.animateTo(
         maxScroll,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
+      );
+    } else {
+      print(
+        'DEBUG GameScreen._scrollToNewBoard: Cannot scroll - hasClients=${_horizontalScrollController.hasClients}, maxScrollExtent=${_horizontalScrollController.hasClients ? _horizontalScrollController.position.maxScrollExtent : "N/A"}',
       );
     }
   }
@@ -517,10 +548,15 @@ class _BlankBoardsViewState extends State<_BlankBoardsView> {
 
     // Sort boards by turn number to ensure correct order
     boards.sort((a, b) => a.t.compareTo(b.t));
-    // print(
-    //   'DEBUG GameScreen.build: Final board count before build: ${boards.length}',
-    // );
-    // print('DEBUG GameScreen.build: === END BUILD ===');
+    print(
+      'DEBUG GameScreen.build: Final board count before build: ${boards.length}',
+    );
+    for (final board in boards) {
+      print(
+        'DEBUG GameScreen.build: Final board list - l=${board.l}, t=${board.t}, turn=${board.turn}, active=${board.active}, deleted=${board.deleted}',
+      );
+    }
+    print('DEBUG GameScreen.build: === END BUILD ===');
 
     return _buildBoardsRow(boards);
   }

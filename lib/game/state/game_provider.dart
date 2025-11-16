@@ -93,12 +93,21 @@ class GameProvider extends ChangeNotifier {
   ///
   /// Returns true if the move was successful
   bool makeMove(Piece piece, Vec4 targetPos, int? promotion) {
+    print('DEBUG GameProvider.makeMove: Attempting move');
+    print(
+      'DEBUG GameProvider.makeMove: game.finished=${_game.finished}, currentTurnMoves.length=${_game.currentTurnMoves.length}, game.turn=${_game.turn}, piece.side=${piece.side}',
+    );
+
     if (_game.finished) {
+      print('DEBUG GameProvider.makeMove: Game is finished - move rejected');
       return false;
     }
 
     // Allow only one move per turn
     if (_game.currentTurnMoves.isNotEmpty) {
+      print(
+        'DEBUG GameProvider.makeMove: Move rejected - currentTurnMoves is not empty (${_game.currentTurnMoves.length} moves)',
+      );
       return false; // A move has already been made this turn
     }
 
@@ -148,30 +157,33 @@ class GameProvider extends ChangeNotifier {
     // Validate king moves according to chess rules
     if (piece.type == PieceType.king && piece.board != null) {
       // Check if this is a castling move (king moves 2 squares horizontally)
-      final isCastlingMove =
-          (targetPos.x - piece.x).abs() == 2 && targetPos.y == piece.y;
-      if (isCastlingMove) {
-        print(
-          'DEBUG GameProvider.makeMove: Validating castling move from (${piece.x}, ${piece.y}) to (${targetPos.x}, ${targetPos.y})',
-        );
-      }
+      // final isCastlingMove =
+      //     (targetPos.x - piece.x).abs() == 2 && targetPos.y == piece.y;
+      // if (isCastlingMove) {
+      //   print(
+      //     'DEBUG GameProvider.makeMove: Validating castling move from (${piece.x}, ${piece.y}) to (${targetPos.x}, ${targetPos.y})',
+      //   );
+      // }
       if (!_isValidKingMove(piece, targetPos, piece.board as Board)) {
-        if (isCastlingMove) {
-          print(
-            'DEBUG GameProvider.makeMove: Castling move FAILED _isValidKingMove validation',
-          );
-        }
+        // if (isCastlingMove) {
+        //   print(
+        //     'DEBUG GameProvider.makeMove: Castling move FAILED _isValidKingMove validation',
+        //   );
+        // }
         return false;
       }
-      if (isCastlingMove) {
-        print(
-          'DEBUG GameProvider.makeMove: Castling move PASSED _isValidKingMove validation',
-        );
-      }
+      // if (isCastlingMove) {
+      //   print(
+      //     'DEBUG GameProvider.makeMove: Castling move PASSED _isValidKingMove validation',
+      //   );
+      // }
     }
 
     // Turn validation - only allow moves for pieces of the current player's side
     if (piece.side != _game.turn) {
+      print(
+        'DEBUG GameProvider.makeMove: Move rejected - not this player\'s turn (piece.side=${piece.side}, game.turn=${_game.turn})',
+      );
       return false; // Not this player's turn
     }
 
@@ -198,7 +210,11 @@ class GameProvider extends ChangeNotifier {
     print(
       'DEBUG GameProvider.makeMove: Making move with piece at l=${piece.board?.l}, t=${piece.board?.t}, targetPos: l=${targetPos.l}, t=${targetPos.t}',
     );
+    print(
+      'DEBUG GameProvider.makeMove: Piece state - board=${piece.board != null ? "l=${piece.board!.l}, t=${piece.board!.t}, active=${piece.board!.active}, deleted=${piece.board!.deleted}" : "null"}, x=${piece.x}, y=${piece.y}',
+    );
     try {
+      print('DEBUG GameProvider.makeMove: Calling instantiateMove...');
       final move = _game.instantiateMove(
         piece,
         targetPos,
@@ -206,10 +222,13 @@ class GameProvider extends ChangeNotifier {
         false,
         false,
       );
+      print(
+        'DEBUG GameProvider.makeMove: Move created successfully - sourceBoard=${move.sourceBoard != null ? "l=${move.sourceBoard!.l}, t=${move.sourceBoard!.t}" : "null"}, targetBoard=${move.targetBoard != null ? "l=${move.targetBoard!.l}, t=${move.targetBoard!.t}" : "null"}, createdBoards=${move.createdBoards.length}',
+      );
       print('DEBUG GameProvider.makeMove: Move created, applying...');
       _game.applyMove(move, false);
       print(
-        'DEBUG GameProvider.makeMove: Move applied, timeline end is now ${_game.getTimeline(0).end}',
+        'DEBUG GameProvider.makeMove: Move applied, timeline end is now ${_game.getTimeline(0).end}, currentTurnMoves.length=${_game.currentTurnMoves.length}',
       );
       _game.findChecks(); // Ensure checks are found after move
       _game.checkSubmitAvailable();
@@ -218,9 +237,14 @@ class GameProvider extends ChangeNotifier {
       _selectedPiece = null;
       _updateLegalMoves();
       notifyListeners();
+      print('DEBUG GameProvider.makeMove: Move completed successfully');
       return true;
-    } catch (e) {
+    } catch (e, stackTrace) {
       // Move creation failed
+      print(
+        'DEBUG GameProvider.makeMove: ERROR - Move creation/execution failed: $e',
+      );
+      print('DEBUG GameProvider.makeMove: Stack trace: $stackTrace');
       return false;
     }
   }
@@ -508,9 +532,9 @@ class GameProvider extends ChangeNotifier {
     final isCastlingMove = dx.abs() == 2 && dy == 0;
 
     if (isCastlingMove) {
-      print(
-        'DEBUG GameProvider._isValidKingMove: Detected castling move - allowing it',
-      );
+      // print(
+      //   'DEBUG GameProvider._isValidKingMove: Detected castling move - allowing it',
+      // );
       // Castling is validated separately in MovementPatterns._canCastleKingside/Queenside
       // and in getLegalMovesForPiece (check validation)
       // So we just need to allow it here
@@ -542,12 +566,25 @@ class GameProvider extends ChangeNotifier {
   ///
   /// Returns true if a move was undone
   bool undoMove() {
+    print('DEBUG GameProvider.undoMove: Starting undo');
+
     if (_game.currentTurnMoves.isEmpty) {
+      print('DEBUG GameProvider.undoMove: No moves to undo');
       return false;
     }
 
+    print(
+      'DEBUG GameProvider.undoMove: Current turn moves count: ${_game.currentTurnMoves.length}',
+    );
+
     // Remove the last move and reverse it
+    print(
+      'DEBUG GameProvider.undoMove: currentTurnMoves before removal: ${_game.currentTurnMoves.length}',
+    );
     final lastMove = _game.currentTurnMoves.removeLast();
+    print(
+      'DEBUG GameProvider.undoMove: Removed last move from currentTurnMoves. Remaining moves: ${_game.currentTurnMoves.length}',
+    );
 
     // Store move info before undo (undo may remove boards)
     final isRegularMove = !lastMove.nullMove;
@@ -555,14 +592,28 @@ class GameProvider extends ChangeNotifier {
     final sourcePos = lastMove.from;
     final sourceBoard = lastMove.sourceBoard;
 
+    print(
+      'DEBUG GameProvider.undoMove: Move info - isRegularMove=$isRegularMove, sourcePiece=${sourcePiece?.type}, sourcePos=${sourcePos != null ? "(${sourcePos.x}, ${sourcePos.y}) at l=${sourcePos.l}, t=${sourcePos.t}" : "null"}',
+    );
+
     // Store used boards before undo (need to restore them in timeline)
     final usedBoards = List<Board>.from(lastMove.usedBoards);
+    print(
+      'DEBUG GameProvider.undoMove: Stored ${usedBoards.length} used boards',
+    );
 
     // Undo the move (removes created boards, reactivates used boards)
+    print('DEBUG GameProvider.undoMove: Calling lastMove.undo()');
     lastMove.undo();
 
     // Restore used boards in timeline (undo removes created boards but doesn't restore used boards in timeline)
+    print(
+      'DEBUG GameProvider.undoMove: Restoring ${usedBoards.length} used boards in timeline',
+    );
     for (final usedBoard in usedBoards) {
+      print(
+        'DEBUG GameProvider.undoMove: Restoring used board at l=${usedBoard.l}, t=${usedBoard.t}',
+      );
       final timeline = _game.getTimeline(usedBoard.l);
       timeline.setBoard(usedBoard.t, usedBoard);
     }
@@ -572,32 +623,104 @@ class GameProvider extends ChangeNotifier {
         sourcePiece != null &&
         sourcePos != null &&
         sourceBoard != null) {
+      print(
+        'DEBUG GameProvider.undoMove: Restoring piece position for ${sourcePiece.type}',
+      );
       // Find the actual board to restore to (the used board that was reactivated)
       final restoredBoard = usedBoards.firstWhere(
         (board) => board.l == sourcePos.l && board.t == sourcePos.t,
         orElse: () => sourceBoard,
       );
 
+      print(
+        'DEBUG GameProvider.undoMove: Restored board: l=${restoredBoard.l}, t=${restoredBoard.t}',
+      );
+
       // Move piece back to original position on the restored board
-      if (sourcePiece.board != restoredBoard ||
+      print(
+        'DEBUG GameProvider.undoMove: Piece current state - board: ${sourcePiece.board != null ? "l=${sourcePiece.board!.l}, t=${sourcePiece.board!.t}, active=${sourcePiece.board!.active}, deleted=${sourcePiece.board!.deleted}" : "null"}, x=${sourcePiece.x}, y=${sourcePiece.y}',
+      );
+      print(
+        'DEBUG GameProvider.undoMove: Restored board state - l=${restoredBoard.l}, t=${restoredBoard.t}, active=${restoredBoard.active}, deleted=${restoredBoard.deleted}',
+      );
+
+      // Check if piece is on a deleted board or wrong board
+      if (sourcePiece.board == null ||
+          sourcePiece.board!.deleted ||
+          sourcePiece.board != restoredBoard ||
           sourcePiece.x != sourcePos.x ||
           sourcePiece.y != sourcePos.y) {
+        print(
+          'DEBUG GameProvider.undoMove: Moving piece from (${sourcePiece.x}, ${sourcePiece.y}) on board ${sourcePiece.board != null ? "l=${sourcePiece.board!.l}, t=${sourcePiece.board!.t}" : "null"} back to (${sourcePos.x}, ${sourcePos.y}) on restored board l=${restoredBoard.l}, t=${restoredBoard.t}',
+        );
+
+        // If piece is on a deleted board, we need to manually set it
+        if (sourcePiece.board != null && sourcePiece.board!.deleted) {
+          print(
+            'DEBUG GameProvider.undoMove: Piece is on deleted board - manually removing from old board and placing on restored board',
+          );
+          // Remove piece from old board if it still exists there
+          if (sourcePiece.board!.getPiece(sourcePiece.x, sourcePiece.y) ==
+              sourcePiece) {
+            sourcePiece.board!.setPiece(sourcePiece.x, sourcePiece.y, null);
+          }
+        }
+
         sourcePiece.changePosition(restoredBoard, sourcePos.x, sourcePos.y);
+        print(
+          'DEBUG GameProvider.undoMove: Piece moved - new board: l=${sourcePiece.board?.l}, t=${sourcePiece.board?.t}, x=${sourcePiece.x}, y=${sourcePiece.y}',
+        );
+      } else {
+        print(
+          'DEBUG GameProvider.undoMove: Piece already at correct position - no change needed',
+        );
       }
     }
 
     // Update game state after undo (similar to Game.undo())
+    print(
+      'DEBUG GameProvider.undoMove: currentTurnMoves after undo operations: ${_game.currentTurnMoves.length}',
+    );
+
+    // Safety check: if currentTurnMoves is not empty after undo, something went wrong
+    // The move should have been removed by removeLast() above, so clear any remaining moves
+    if (_game.currentTurnMoves.isNotEmpty) {
+      print(
+        'DEBUG GameProvider.undoMove: WARNING - currentTurnMoves is not empty after undo (${_game.currentTurnMoves.length} moves remaining)',
+      );
+      print(
+        'DEBUG GameProvider.undoMove: Clearing remaining moves to restore move privilege',
+      );
+      for (final move in _game.currentTurnMoves) {
+        print(
+          'DEBUG GameProvider.undoMove: Remaining move - nullMove=${move.nullMove}, sourceBoard=${move.sourceBoard != null ? "l=${move.sourceBoard!.l}, t=${move.sourceBoard!.t}" : "null"}',
+        );
+      }
+      _game.currentTurnMoves.clear();
+    }
+
     if (_game.currentTurnMoves.isEmpty) {
+      print(
+        'DEBUG GameProvider.undoMove: No more moves - calling movePresent(false)',
+      );
       _game.movePresent(false);
     }
 
+    print(
+      'DEBUG GameProvider.undoMove: Finding checks and checking submit availability',
+    );
     _game.findChecks();
     _game.checkSubmitAvailable();
+
+    print(
+      'DEBUG GameProvider.undoMove: Final state - currentTurnMoves.length=${_game.currentTurnMoves.length}, game.turn=${_game.turn}',
+    );
 
     // Clear selection and update legal moves
     _selectedPiece = null;
     _legalMoves = [];
     notifyListeners();
+    print('DEBUG GameProvider.undoMove: Undo completed successfully');
     return true;
   }
 
@@ -670,23 +793,23 @@ class GameProvider extends ChangeNotifier {
 
     // Get all possible moves for this piece
     final allMoves = piece.enumerateMoves();
-    print(
-      'DEBUG GameProvider.getLegalMovesForPiece: Found ${allMoves.length} possible moves for ${piece.type} at (${piece.x}, ${piece.y})',
-    );
+    // print(
+    //   'DEBUG GameProvider.getLegalMovesForPiece: Found ${allMoves.length} possible moves for ${piece.type} at (${piece.x}, ${piece.y})',
+    // );
 
     // Filter out illegal moves (moves that would leave king in check)
     final legalMoves = <Vec4>[];
     for (final move in allMoves) {
       // Check if this is a castling move (king moves 2 squares horizontally)
-      final isCastlingMove =
-          piece.type == PieceType.king &&
-          (move.x - piece.x).abs() == 2 &&
-          move.y == piece.y;
-      if (isCastlingMove) {
-        print(
-          'DEBUG GameProvider.getLegalMovesForPiece: Found potential castling move to (${move.x}, ${move.y}) at l=${move.l}, t=${move.t}',
-        );
-      }
+      // final isCastlingMove =
+      //     piece.type == PieceType.king &&
+      //     (move.x - piece.x).abs() == 2 &&
+      //     move.y == piece.y;
+      // if (isCastlingMove) {
+      //   print(
+      //     'DEBUG GameProvider.getLegalMovesForPiece: Found potential castling move to (${move.x}, ${move.y}) at l=${move.l}, t=${move.t}',
+      //   );
+      // }
 
       try {
         // Use CheckDetector to check if move would leave king in check
@@ -699,33 +822,34 @@ class GameProvider extends ChangeNotifier {
             );
 
         if (!wouldLeaveInCheck) {
-          if (isCastlingMove) {
-            print(
-              'DEBUG GameProvider.getLegalMovesForPiece: Castling move to (${move.x}, ${move.y}) is LEGAL - adding to legalMoves',
-            );
-          }
+          // if (isCastlingMove) {
+          //   print(
+          //     'DEBUG GameProvider.getLegalMovesForPiece: Castling move to (${move.x}, ${move.y}) is LEGAL - adding to legalMoves',
+          //   );
+          // }
           legalMoves.add(move);
-        } else {
-          if (isCastlingMove) {
-            print(
-              'DEBUG GameProvider.getLegalMovesForPiece: Castling move to (${move.x}, ${move.y}) is ILLEGAL - would leave king in check',
-            );
-          }
         }
+        // else {
+        //   if (isCastlingMove) {
+        //     print(
+        //       'DEBUG GameProvider.getLegalMovesForPiece: Castling move to (${move.x}, ${move.y}) is ILLEGAL - would leave king in check',
+        //     );
+        //   }
+        // }
       } catch (e) {
         // Invalid move, skip it
-        if (isCastlingMove) {
-          print(
-            'DEBUG GameProvider.getLegalMovesForPiece: Castling move to (${move.x}, ${move.y}) threw exception: $e',
-          );
-        }
+        // if (isCastlingMove) {
+        //   print(
+        //     'DEBUG GameProvider.getLegalMovesForPiece: Castling move to (${move.x}, ${move.y}) threw exception: $e',
+        //   );
+        // }
         continue;
       }
     }
 
-    print(
-      'DEBUG GameProvider.getLegalMovesForPiece: Returning ${legalMoves.length} legal moves',
-    );
+    // print(
+    //   'DEBUG GameProvider.getLegalMovesForPiece: Returning ${legalMoves.length} legal moves',
+    // );
     return legalMoves;
   }
 
@@ -788,26 +912,26 @@ class GameProvider extends ChangeNotifier {
         'DEBUG GameProvider.handleSquareTap: Calling makeMove with targetPos l=${position.l}, t=${position.t}, x=${position.x}, y=${position.y}',
       );
       // Check if this is a castling move
-      final isCastlingMove =
-          _selectedPiece!.type == PieceType.king &&
-          (position.x - _selectedPiece!.x).abs() == 2 &&
-          position.y == _selectedPiece!.y;
-      if (isCastlingMove) {
-        print(
-          'DEBUG GameProvider.handleSquareTap: DETECTED CASTLING MOVE! King from (${_selectedPiece!.x}, ${_selectedPiece!.y}) to (${position.x}, ${position.y})',
-        );
-        // Check if this move is in legalMoves
-        final isLegalCastling = _legalMoves.any(
-          (move) =>
-              move.x == position.x &&
-              move.y == position.y &&
-              move.l == position.l &&
-              move.t == position.t,
-        );
-        print(
-          'DEBUG GameProvider.handleSquareTap: Castling move is in legalMoves: $isLegalCastling',
-        );
-      }
+      // final isCastlingMove =
+      //     _selectedPiece!.type == PieceType.king &&
+      //     (position.x - _selectedPiece!.x).abs() == 2 &&
+      //     position.y == _selectedPiece!.y;
+      // if (isCastlingMove) {
+      //   print(
+      //     'DEBUG GameProvider.handleSquareTap: DETECTED CASTLING MOVE! King from (${_selectedPiece!.x}, ${_selectedPiece!.y}) to (${position.x}, ${position.y})',
+      //   );
+      //   // Check if this move is in legalMoves
+      //   final isLegalCastling = _legalMoves.any(
+      //     (move) =>
+      //         move.x == position.x &&
+      //         move.y == position.y &&
+      //         move.l == position.l &&
+      //         move.t == position.t,
+      //   );
+      //   print(
+      //     'DEBUG GameProvider.handleSquareTap: Castling move is in legalMoves: $isLegalCastling',
+      //   );
+      // }
       makeMove(_selectedPiece!, position, null);
     } else {
       // No piece selected, check if there's a piece on this square

@@ -24,6 +24,7 @@ class Board {
        active = true,
        deleted = false,
        castleAvailable = 0,
+       enPassantTargetSquare = null,
        imminentCheck = false {
     // If cloning from another board, copy pieces
     if (initialBoard != null) {
@@ -36,6 +37,9 @@ class Board {
         }
       }
       castleAvailable = initialBoard.castleAvailable;
+      enPassantTargetSquare = initialBoard.enPassantTargetSquare;
+    } else {
+      enPassantTargetSquare = null;
     }
   }
 
@@ -45,7 +49,7 @@ class Board {
   /// [isBranch] - Whether this is a timeline branch
   /// [newL] - New timeline index (if branching)
   factory Board.fromBoard(Board source, {bool isBranch = false, int? newL}) {
-    return Board(
+    final board = Board(
       game: source.game,
       l: newL ?? source.l,
       t: source.t,
@@ -53,6 +57,9 @@ class Board {
       initialBoard: source,
       fastForward: true,
     );
+    // Copy en passant target square (already done in constructor via initialBoard, but ensure it's copied)
+    board.enPassantTargetSquare = source.enPassantTargetSquare;
+    return board;
   }
 
   /// The game this board belongs to
@@ -84,6 +91,10 @@ class Board {
   /// Bit 0: Black kingside, Bit 1: Black queenside
   /// Bit 2: White kingside, Bit 3: White queenside
   int castleAvailable;
+
+  /// En passant target square (the square behind the pawn that moved two squares)
+  /// null if no en passant is available
+  Vec4? enPassantTargetSquare;
 
   /// Whether this board has imminent checks
   bool imminentCheck;

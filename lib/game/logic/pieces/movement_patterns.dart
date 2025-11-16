@@ -195,51 +195,52 @@ class MovementPatterns {
     // IMPORTANT: Only check castling if it's this piece's turn (when checking moves for current player)
     // Skip castling checks during check detection (when validating moves for other players)
     if (targetL == null && piece.game != null && board.turn == piece.side) {
-      print(
-        'DEBUG Castling: Checking castling for king at (${piece.x}, ${piece.y}), side=${piece.side}, board.turn=${board.turn}, hasMoved=${piece.hasMoved}',
-      );
-      print(
-        'DEBUG Castling: Board castling rights: ${board.castleAvailable.toRadixString(2)}',
-      );
+      // print(
+      //   'DEBUG Castling: Checking castling for king at (${piece.x}, ${piece.y}), side=${piece.side}, board.turn=${board.turn}, hasMoved=${piece.hasMoved}',
+      // );
+      // print(
+      //   'DEBUG Castling: Board castling rights: ${board.castleAvailable.toRadixString(2)}',
+      // );
 
       // Kingside castling: king moves to g-file (x=6)
       final canKingside = _canCastleKingside(piece, board, piece.game);
-      print('DEBUG Castling: Kingside castling possible: $canKingside');
+      // print('DEBUG Castling: Kingside castling possible: $canKingside');
       if (canKingside) {
         final castlingPos = Vec4(6, piece.y, l, t);
         if (castlingPos.isValid()) {
-          print(
-            'DEBUG Castling: Adding kingside castling move to (${castlingPos.x}, ${castlingPos.y}) at l=${castlingPos.l}, t=${castlingPos.t}',
-          );
+          // print(
+          //   'DEBUG Castling: Adding kingside castling move to (${castlingPos.x}, ${castlingPos.y}) at l=${castlingPos.l}, t=${castlingPos.t}',
+          // );
           moves.add(castlingPos);
         }
       }
 
       // Queenside castling: king moves to c-file (x=2)
       final canQueenside = _canCastleQueenside(piece, board, piece.game);
-      print('DEBUG Castling: Queenside castling possible: $canQueenside');
+      // print('DEBUG Castling: Queenside castling possible: $canQueenside');
       if (canQueenside) {
         final castlingPos = Vec4(2, piece.y, l, t);
         if (castlingPos.isValid()) {
-          print(
-            'DEBUG Castling: Adding queenside castling move to (${castlingPos.x}, ${castlingPos.y}) at l=${castlingPos.l}, t=${castlingPos.t}',
-          );
+          // print(
+          //   'DEBUG Castling: Adding queenside castling move to (${castlingPos.x}, ${castlingPos.y}) at l=${castlingPos.l}, t=${castlingPos.t}',
+          // );
           moves.add(castlingPos);
         }
       }
-    } else {
-      if (targetL != null) {
-        print(
-          'DEBUG Castling: Skipping castling - targetL is not null (inter-dimensional move)',
-        );
-      } else if (piece.game == null) {
-        print('DEBUG Castling: Skipping castling - piece.game is null');
-      } else if (board.turn != piece.side) {
-        print(
-          'DEBUG Castling: Skipping castling - not this player\'s turn (board.turn=${board.turn}, piece.side=${piece.side})',
-        );
-      }
     }
+    // else {
+    //   if (targetL != null) {
+    //     print(
+    //       'DEBUG Castling: Skipping castling - targetL is not null (inter-dimensional move)',
+    //     );
+    //   } else if (piece.game == null) {
+    //     print('DEBUG Castling: Skipping castling - piece.game is null');
+    //   } else if (board.turn != piece.side) {
+    //     print(
+    //       'DEBUG Castling: Skipping castling - not this player\'s turn (board.turn=${board.turn}, piece.side=${piece.side})',
+    //     );
+    //   }
+    // }
 
     return moves;
   }
@@ -250,61 +251,61 @@ class MovementPatterns {
   /// [board] - The board to check on
   /// [game] - The game instance (for check detection)
   static bool _canCastleKingside(Piece king, Board board, dynamic game) {
-    print('DEBUG Castling._canCastleKingside: Checking kingside castling');
+    // print('DEBUG Castling._canCastleKingside: Checking kingside castling');
 
     if (king.hasMoved) {
-      print('DEBUG Castling._canCastleKingside: Failed - king has moved');
+      // print('DEBUG Castling._canCastleKingside: Failed - king has moved');
       return false;
     }
     if (king.x != 4) {
-      print(
-        'DEBUG Castling._canCastleKingside: Failed - king not on e-file (x=${king.x})',
-      );
+      // print(
+      //   'DEBUG Castling._canCastleKingside: Failed - king not on e-file (x=${king.x})',
+      // );
       return false; // King must be on e-file
     }
     if (king.side == 0 && king.y != 0) {
-      print(
-        'DEBUG Castling._canCastleKingside: Failed - black king not on rank 0 (y=${king.y})',
-      );
+      // print(
+      //   'DEBUG Castling._canCastleKingside: Failed - black king not on rank 0 (y=${king.y})',
+      // );
       return false; // Black king on rank 0
     }
     if (king.side == 1 && king.y != 7) {
-      print(
-        'DEBUG Castling._canCastleKingside: Failed - white king not on rank 7 (y=${king.y})',
-      );
+      // print(
+      //   'DEBUG Castling._canCastleKingside: Failed - white king not on rank 7 (y=${king.y})',
+      // );
       return false; // White king on rank 7
     }
 
     // Check if castling rights exist
     final rights = board.castleAvailable;
     if (king.side == 0 && !CastlingRights.canBlackCastleKingside(rights)) {
-      print(
-        'DEBUG Castling._canCastleKingside: Failed - black kingside castling rights not available',
-      );
+      // print(
+      //   'DEBUG Castling._canCastleKingside: Failed - black kingside castling rights not available',
+      // );
       return false;
     }
     if (king.side == 1 && !CastlingRights.canWhiteCastleKingside(rights)) {
-      print(
-        'DEBUG Castling._canCastleKingside: Failed - white kingside castling rights not available',
-      );
+      // print(
+      //   'DEBUG Castling._canCastleKingside: Failed - white kingside castling rights not available',
+      // );
       return false;
     }
 
     // Check if squares between king and rook are empty
     if (board.getPiece(5, king.y) != null ||
         board.getPiece(6, king.y) != null) {
-      print(
-        'DEBUG Castling._canCastleKingside: Failed - squares between king and rook are not empty',
-      );
+      // print(
+      //   'DEBUG Castling._canCastleKingside: Failed - squares between king and rook are not empty',
+      // );
       return false;
     }
 
     // Check if rook exists and hasn't moved
     final rook = board.getPiece(7, king.y);
     if (rook == null || rook.type != PieceType.rook || rook.hasMoved) {
-      print(
-        'DEBUG Castling._canCastleKingside: Failed - rook at (7, ${king.y}) is ${rook == null ? "null" : "type=${rook.type}, hasMoved=${rook.hasMoved}"}',
-      );
+      // print(
+      //   'DEBUG Castling._canCastleKingside: Failed - rook at (7, ${king.y}) is ${rook == null ? "null" : "type=${rook.type}, hasMoved=${rook.hasMoved}"}',
+      // );
       return false;
     }
 
@@ -315,7 +316,7 @@ class MovementPatterns {
       king.side,
     );
     if (inCheck) {
-      print('DEBUG Castling._canCastleKingside: Failed - king is in check');
+      // print('DEBUG Castling._canCastleKingside: Failed - king is in check');
       return false;
     }
 
@@ -324,7 +325,7 @@ class MovementPatterns {
     final tempBoard = Board.fromBoard(board);
     final tempKing = tempBoard.getPiece(king.x, king.y);
     if (tempKing == null) {
-      print('DEBUG Castling._canCastleKingside: Failed - tempKing is null');
+      // print('DEBUG Castling._canCastleKingside: Failed - tempKing is null');
       return false;
     }
 
@@ -337,9 +338,9 @@ class MovementPatterns {
       king.side,
     );
     if (checkOnF) {
-      print(
-        'DEBUG Castling._canCastleKingside: Failed - king would pass through check at f (5, ${king.y})',
-      );
+      // print(
+      //   'DEBUG Castling._canCastleKingside: Failed - king would pass through check at f (5, ${king.y})',
+      // );
       return false;
     }
 
@@ -352,15 +353,15 @@ class MovementPatterns {
       king.side,
     );
     if (checkOnG) {
-      print(
-        'DEBUG Castling._canCastleKingside: Failed - king would end in check at g (6, ${king.y})',
-      );
+      // print(
+      //   'DEBUG Castling._canCastleKingside: Failed - king would end in check at g (6, ${king.y})',
+      // );
       return false;
     }
 
-    print(
-      'DEBUG Castling._canCastleKingside: SUCCESS - kingside castling is legal',
-    );
+    // print(
+    //   'DEBUG Castling._canCastleKingside: SUCCESS - kingside castling is legal',
+    // );
     return true;
   }
 
@@ -370,43 +371,43 @@ class MovementPatterns {
   /// [board] - The board to check on
   /// [game] - The game instance (for check detection)
   static bool _canCastleQueenside(Piece king, Board board, dynamic game) {
-    print('DEBUG Castling._canCastleQueenside: Checking queenside castling');
+    // print('DEBUG Castling._canCastleQueenside: Checking queenside castling');
 
     if (king.hasMoved) {
-      print('DEBUG Castling._canCastleQueenside: Failed - king has moved');
+      // print('DEBUG Castling._canCastleQueenside: Failed - king has moved');
       return false;
     }
     if (king.x != 4) {
-      print(
-        'DEBUG Castling._canCastleQueenside: Failed - king not on e-file (x=${king.x})',
-      );
+      // print(
+      //   'DEBUG Castling._canCastleQueenside: Failed - king not on e-file (x=${king.x})',
+      // );
       return false; // King must be on e-file
     }
     if (king.side == 0 && king.y != 0) {
-      print(
-        'DEBUG Castling._canCastleQueenside: Failed - black king not on rank 0 (y=${king.y})',
-      );
+      // print(
+      //   'DEBUG Castling._canCastleQueenside: Failed - black king not on rank 0 (y=${king.y})',
+      // );
       return false; // Black king on rank 0
     }
     if (king.side == 1 && king.y != 7) {
-      print(
-        'DEBUG Castling._canCastleQueenside: Failed - white king not on rank 7 (y=${king.y})',
-      );
+      // print(
+      //   'DEBUG Castling._canCastleQueenside: Failed - white king not on rank 7 (y=${king.y})',
+      // );
       return false; // White king on rank 7
     }
 
     // Check if castling rights exist
     final rights = board.castleAvailable;
     if (king.side == 0 && !CastlingRights.canBlackCastleQueenside(rights)) {
-      print(
-        'DEBUG Castling._canCastleQueenside: Failed - black queenside castling rights not available',
-      );
+      // print(
+      //   'DEBUG Castling._canCastleQueenside: Failed - black queenside castling rights not available',
+      // );
       return false;
     }
     if (king.side == 1 && !CastlingRights.canWhiteCastleQueenside(rights)) {
-      print(
-        'DEBUG Castling._canCastleQueenside: Failed - white queenside castling rights not available',
-      );
+      // print(
+      //   'DEBUG Castling._canCastleQueenside: Failed - white queenside castling rights not available',
+      // );
       return false;
     }
 
@@ -414,18 +415,18 @@ class MovementPatterns {
     if (board.getPiece(1, king.y) != null ||
         board.getPiece(2, king.y) != null ||
         board.getPiece(3, king.y) != null) {
-      print(
-        'DEBUG Castling._canCastleQueenside: Failed - squares between king and rook are not empty',
-      );
+      // print(
+      //   'DEBUG Castling._canCastleQueenside: Failed - squares between king and rook are not empty',
+      // );
       return false;
     }
 
     // Check if rook exists and hasn't moved
     final rook = board.getPiece(0, king.y);
     if (rook == null || rook.type != PieceType.rook || rook.hasMoved) {
-      print(
-        'DEBUG Castling._canCastleQueenside: Failed - rook at (0, ${king.y}) is ${rook == null ? "null" : "type=${rook.type}, hasMoved=${rook.hasMoved}"}',
-      );
+      // print(
+      //   'DEBUG Castling._canCastleQueenside: Failed - rook at (0, ${king.y}) is ${rook == null ? "null" : "type=${rook.type}, hasMoved=${rook.hasMoved}"}',
+      // );
       return false;
     }
 
@@ -436,7 +437,7 @@ class MovementPatterns {
       king.side,
     );
     if (inCheck) {
-      print('DEBUG Castling._canCastleQueenside: Failed - king is in check');
+      // print('DEBUG Castling._canCastleQueenside: Failed - king is in check');
       return false;
     }
 
@@ -445,7 +446,7 @@ class MovementPatterns {
     final tempBoard = Board.fromBoard(board);
     final tempKing = tempBoard.getPiece(king.x, king.y);
     if (tempKing == null) {
-      print('DEBUG Castling._canCastleQueenside: Failed - tempKing is null');
+      // print('DEBUG Castling._canCastleQueenside: Failed - tempKing is null');
       return false;
     }
 
@@ -458,9 +459,9 @@ class MovementPatterns {
       king.side,
     );
     if (checkOnD) {
-      print(
-        'DEBUG Castling._canCastleQueenside: Failed - king would pass through check at d (3, ${king.y})',
-      );
+      // print(
+      //   'DEBUG Castling._canCastleQueenside: Failed - king would pass through check at d (3, ${king.y})',
+      // );
       return false;
     }
 
@@ -473,15 +474,15 @@ class MovementPatterns {
       king.side,
     );
     if (checkOnC) {
-      print(
-        'DEBUG Castling._canCastleQueenside: Failed - king would end in check at c (2, ${king.y})',
-      );
+      // print(
+      //   'DEBUG Castling._canCastleQueenside: Failed - king would end in check at c (2, ${king.y})',
+      // );
       return false;
     }
 
-    print(
-      'DEBUG Castling._canCastleQueenside: SUCCESS - queenside castling is legal',
-    );
+    // print(
+    //   'DEBUG Castling._canCastleQueenside: SUCCESS - queenside castling is legal',
+    // );
     return true;
   }
 
@@ -532,10 +533,85 @@ class MovementPatterns {
         final targetPiece = board.getPiece(captureX, captureY);
         if (targetPiece != null && targetPiece.side != piece.side) {
           // Enemy piece - can capture
+          // print(
+          //   'DEBUG EnPassant: Regular capture found at (${captureX}, ${captureY})',
+          // );
           moves.add(targetPos);
         }
       }
     }
+
+    // En passant capture
+    if (board.enPassantTargetSquare != null) {
+      // print(
+      //   'DEBUG EnPassant: Checking en passant - target square: (${board.enPassantTargetSquare!.x}, ${board.enPassantTargetSquare!.y}) at l=${board.enPassantTargetSquare!.l}, t=${board.enPassantTargetSquare!.t}',
+      // );
+      // print(
+      //   'DEBUG EnPassant: Pawn at (${piece.x}, ${piece.y}), direction=$direction, piece side=${piece.side}',
+      // );
+
+      // En passant is only available if:
+      // 1. The en passant target square is adjacent horizontally (same rank)
+      // 2. The pawn can capture diagonally to the square behind the target
+      final epTarget = board.enPassantTargetSquare!;
+      if (epTarget.l == board.l && epTarget.t == board.t) {
+        // Same board - check if pawn is on the same rank and adjacent file
+        final dx = epTarget.x - piece.x;
+        final isAdjacent = dx.abs() == 1 && epTarget.y == piece.y;
+
+        if (isAdjacent) {
+          // The pawn is adjacent to the en passant target square
+          // The capture square is one square forward (in the direction of movement)
+          final captureY = piece.y + direction;
+          final capturePos = Vec4(epTarget.x, captureY, l, t);
+
+          // print(
+          //   'DEBUG EnPassant: Pawn is adjacent to en passant target - capture square: (${capturePos.x}, ${capturePos.y}) at l=${capturePos.l}, t=${capturePos.t}',
+          // );
+
+          if (capturePos.isValid() &&
+              captureY >= 0 &&
+              captureY < 8 &&
+              capturePos.x >= 0 &&
+              capturePos.x < 8) {
+            // Check if the capture square is empty (it should be for en passant)
+            final captureSquarePiece = board.getPiece(
+              capturePos.x,
+              capturePos.y,
+            );
+            if (captureSquarePiece == null) {
+              // print(
+              //   'DEBUG EnPassant: Adding en passant capture move to (${capturePos.x}, ${capturePos.y}) at l=${capturePos.l}, t=${capturePos.t}',
+              // );
+              moves.add(capturePos);
+            }
+            // else {
+            //   print(
+            //     'DEBUG EnPassant: Capture square (${capturePos.x}, ${capturePos.y}) is not empty - cannot en passant',
+            //   );
+            // }
+          }
+          // else {
+          //   print(
+          //     'DEBUG EnPassant: Capture square (${capturePos.x}, ${capturePos.y}) is invalid or out of bounds',
+          //   );
+          // }
+        }
+        // else {
+        //   print(
+        //     'DEBUG EnPassant: Pawn not adjacent to en passant target (dx=$dx, pawn y=${piece.y}, epTarget y=${epTarget.y})',
+        //   );
+        // }
+      }
+      // else {
+      //   print(
+      //     'DEBUG EnPassant: En passant target is on different board (target l=${epTarget.l}, t=${epTarget.t}, board l=${board.l}, t=${board.t})',
+      //   );
+      // }
+    }
+    // else {
+    //   print('DEBUG EnPassant: No en passant target square available');
+    // }
 
     // Note: Promotion will be handled when the move is executed
     // For now, we just generate the move positions

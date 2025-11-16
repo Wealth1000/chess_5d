@@ -423,6 +423,65 @@ class Move {
         // Place the promoted queen on the target board
         finalTargetBoard.setPiece(targetPos.x, targetPos.y, promotedQueen);
       } else {
+        // Check if this is an en passant capture
+        final epTarget = sourceBoardOriginal.enPassantTargetSquare;
+        final isEnPassantCapture =
+            finalSourcePiece.type == PieceType.pawn &&
+            from != null &&
+            epTarget != null;
+
+        if (isEnPassantCapture) {
+          // Check if the pawn is capturing to the en passant target square
+          // En passant capture: pawn moves diagonally to the square behind the enemy pawn
+          final direction = finalSourcePiece.side == 0 ? 1 : -1;
+          final captureY =
+              epTarget.y + direction; // Square behind the en passant target
+
+          if (targetPos.x == epTarget.x &&
+              targetPos.y == captureY &&
+              targetPos.l == epTarget.l &&
+              targetPos.t == epTarget.t) {
+            // print(
+            //   'DEBUG EnPassant.execute: EN PASSANT CAPTURE DETECTED! Pawn from (${from!.x}, ${from!.y}) to (${targetPos.x}, ${targetPos.y})',
+            // );
+            // print(
+            //   'DEBUG EnPassant.execute: En passant target square: (${epTarget.x}, ${epTarget.y}) at l=${epTarget.l}, t=${epTarget.t}',
+            // );
+
+            // Capture the enemy pawn on the en passant target square
+            // The enemy pawn should be on the source board at the en passant target square
+            final enemyPawn = sourceBoardOriginal.getPiece(
+              epTarget.x,
+              epTarget.y,
+            );
+            if (enemyPawn != null &&
+                enemyPawn.type == PieceType.pawn &&
+                enemyPawn.side != finalSourcePiece.side) {
+              // print(
+              //   'DEBUG EnPassant.execute: Found enemy pawn at (${epTarget.x}, ${epTarget.y}) - removing it',
+              // );
+
+              // Remove the enemy pawn from the target board
+              final enemyPawnOnTarget = finalTargetBoard.getPiece(
+                epTarget.x,
+                epTarget.y,
+              );
+              if (enemyPawnOnTarget != null) {
+                enemyPawnOnTarget.remove();
+                finalTargetBoard.setPiece(epTarget.x, epTarget.y, null);
+                // print(
+                //   'DEBUG EnPassant.execute: Enemy pawn removed from target board',
+                // );
+              }
+            }
+            // else {
+            //   print(
+            //     'DEBUG EnPassant.execute: ERROR - Enemy pawn not found at (${epTarget.x}, ${epTarget.y})',
+            //   );
+            // }
+          }
+        }
+
         // Normal move - move the piece on the target board
         // The source board remains unchanged (previous state)
         pieceOnTargetBoard.changePosition(
@@ -438,9 +497,9 @@ class Move {
             from != null &&
             (targetPos.x - from!.x).abs() == 2 &&
             targetPos.y == from!.y) {
-          print(
-            'DEBUG Castling.execute: CASTLING DETECTED! King from (${from!.x}, ${from!.y}) to (${targetPos.x}, ${targetPos.y})',
-          );
+          // print(
+          //   'DEBUG Castling.execute: CASTLING DETECTED! King from (${from!.x}, ${from!.y}) to (${targetPos.x}, ${targetPos.y})',
+          // );
           // This is a castling move - also move the rook
           final kingY = targetPos.y;
           Piece? rook;
@@ -451,38 +510,38 @@ class Move {
             // Kingside castling: rook moves from h (7) to f (5)
             rookFromX = 7;
             rookToX = 5;
-            print(
-              'DEBUG Castling.execute: Kingside castling - rook from ($rookFromX, $kingY) to ($rookToX, $kingY)',
-            );
+            // print(
+            //   'DEBUG Castling.execute: Kingside castling - rook from ($rookFromX, $kingY) to ($rookToX, $kingY)',
+            // );
           } else if (targetPos.x == 2) {
             // Queenside castling: rook moves from a (0) to d (3)
             rookFromX = 0;
             rookToX = 3;
-            print(
-              'DEBUG Castling.execute: Queenside castling - rook from ($rookFromX, $kingY) to ($rookToX, $kingY)',
-            );
+            // print(
+            //   'DEBUG Castling.execute: Queenside castling - rook from ($rookFromX, $kingY) to ($rookToX, $kingY)',
+            // );
           } else {
             // Not a valid castling move
             rook = null;
             rookFromX = -1;
             rookToX = -1;
-            print(
-              'DEBUG Castling.execute: ERROR - Invalid castling target x=${targetPos.x}',
-            );
+            // print(
+            //   'DEBUG Castling.execute: ERROR - Invalid castling target x=${targetPos.x}',
+            // );
           }
 
           if (rookFromX >= 0) {
             // Find the rook on the target board (it should be at rookFromX, kingY)
             rook = finalTargetBoard.getPiece(rookFromX, kingY);
-            print(
-              'DEBUG Castling.execute: Looking for rook at ($rookFromX, $kingY) on target board: ${rook != null ? "found ${rook.type}" : "not found"}',
-            );
+            // print(
+            //   'DEBUG Castling.execute: Looking for rook at ($rookFromX, $kingY) on target board: ${rook != null ? "found ${rook.type}" : "not found"}',
+            // );
             if (rook != null &&
                 rook.type == PieceType.rook &&
                 rook.side == finalSourcePiece.side) {
-              print(
-                'DEBUG Castling.execute: Moving rook from ($rookFromX, $kingY) to ($rookToX, $kingY)',
-              );
+              // print(
+              //   'DEBUG Castling.execute: Moving rook from ($rookFromX, $kingY) to ($rookToX, $kingY)',
+              // );
               // Move the rook
               rook.changePosition(
                 finalTargetBoard,
@@ -491,23 +550,25 @@ class Move {
                 sourceBoard: sourceBoardOriginal,
                 sourcePiece: rook,
               );
-              print('DEBUG Castling.execute: Rook moved successfully');
-            } else {
-              print(
-                'DEBUG Castling.execute: ERROR - Rook not found or invalid: ${rook == null ? "null" : "type=${rook.type}, side=${rook.side}"}',
-              );
+              // print('DEBUG Castling.execute: Rook moved successfully');
             }
-          }
-        } else if (finalSourcePiece.type == PieceType.king) {
-          // King move but not castling
-          if (from != null) {
-            final xDiff = (targetPos.x - from!.x).abs();
-            final yDiff = (targetPos.y - from!.y).abs();
-            print(
-              'DEBUG Castling.execute: King move (not castling) from (${from!.x}, ${from!.y}) to (${targetPos.x}, ${targetPos.y}), xDiff=$xDiff, yDiff=$yDiff',
-            );
+            // else {
+            //   print(
+            //     'DEBUG Castling.execute: ERROR - Rook not found or invalid: ${rook == null ? "null" : "type=${rook.type}, side=${rook.side}"}',
+            //   );
+            // }
           }
         }
+        // else if (finalSourcePiece.type == PieceType.king) {
+        //   // King move but not castling
+        //   if (from != null) {
+        //     final xDiff = (targetPos.x - from!.x).abs();
+        //     final yDiff = (targetPos.y - from!.y).abs();
+        //     print(
+        //       'DEBUG Castling.execute: King move (not castling) from (${from!.x}, ${from!.y}) to (${targetPos.x}, ${targetPos.y}), xDiff=$xDiff, yDiff=$yDiff',
+        //     );
+        //   }
+        // }
       }
 
       // Update castling rights when king or rook moves
@@ -520,7 +581,6 @@ class Move {
       } else if (finalSourcePiece.type == PieceType.rook) {
         // Remove castling right for this specific rook
         final fromX = from!.x;
-        final targetRank = from!.y;
 
         // Check if this is a corner rook
         if (fromX == 0) {
@@ -543,7 +603,6 @@ class Move {
       // Also update castling rights if a rook is captured
       if (targetPiece != null && targetPiece.type == PieceType.rook) {
         final fromX = targetPos.x;
-        final targetRank = targetPos.y;
 
         if (fromX == 0) {
           // Queenside rook captured
@@ -559,6 +618,61 @@ class Move {
           } else {
             finalTargetBoard.castleAvailable &= ~CastlingRights.whiteKingside;
           }
+        }
+      }
+
+      // Update en passant target square
+      // Algorithm: En Passant Handling
+      // A. On Every Move Made:
+      // 1. If the moved piece is NOT a pawn: Clear enPassantTargetSquare
+      // 2. If the moved piece IS a pawn:
+      //    - If pawn moved 2 squares forward: Set enPassantTargetSquare to the square behind the pawn
+      //    - Otherwise: Clear enPassantTargetSquare
+
+      if (finalSourcePiece.type != PieceType.pawn) {
+        // Not a pawn - clear en passant target square
+        finalTargetBoard.enPassantTargetSquare = null;
+        // print(
+        //   'DEBUG EnPassant.execute: Non-pawn move - cleared enPassantTargetSquare',
+        // );
+      } else {
+        // Pawn move - check if it moved 2 squares forward
+        if (from != null) {
+          final dy = (targetPos.y - from!.y).abs();
+          final dx = (targetPos.x - from!.x).abs();
+
+          // Check if pawn moved exactly 2 squares forward (no horizontal movement)
+          final movedTwoSquares = dy == 2 && dx == 0;
+
+          if (movedTwoSquares) {
+            // Pawn moved 2 squares forward - set en passant target square
+            // The en passant target square is the square behind the pawn (where the pawn came from, plus one square in the direction of movement)
+            final direction = finalSourcePiece.side == 0 ? 1 : -1;
+            final epTargetY = from!.y + direction; // Square behind the pawn
+            final epTarget = Vec4(
+              targetPos.x,
+              epTargetY,
+              targetPos.l,
+              targetPos.t,
+            );
+
+            finalTargetBoard.enPassantTargetSquare = epTarget;
+            // print(
+            //   'DEBUG EnPassant.execute: Pawn moved 2 squares forward - set enPassantTargetSquare to (${epTarget.x}, ${epTarget.y}) at l=${epTarget.l}, t=${epTarget.t}',
+            // );
+          } else {
+            // Pawn did not move 2 squares - clear en passant target square
+            finalTargetBoard.enPassantTargetSquare = null;
+            // print(
+            //   'DEBUG EnPassant.execute: Pawn move (not 2 squares) - cleared enPassantTargetSquare (dy=$dy, dx=$dx)',
+            // );
+          }
+        } else {
+          // No from position - clear en passant target square
+          finalTargetBoard.enPassantTargetSquare = null;
+          // print(
+          //   'DEBUG EnPassant.execute: Pawn move (no from position) - cleared enPassantTargetSquare',
+          // );
         }
       }
     }
@@ -727,20 +841,58 @@ class Move {
   ///
   /// Reverses the move by removing created boards and reactivating used boards
   void undo() {
+    print('DEBUG Move.undo: Starting undo for move');
+    print(
+      'DEBUG Move.undo: Created boards count: ${createdBoards.length}, Used boards count: ${usedBoards.length}',
+    );
+
     // Remove created boards and reactivate used boards
     for (int i = 0; i < createdBoards.length; i++) {
       final createdBoard = createdBoards[i];
+      print(
+        'DEBUG Move.undo: Removing created board at l=${createdBoard.l}, t=${createdBoard.t}',
+      );
 
       // Remove the board from its timeline
       final timeline = game.getTimeline(createdBoard.l);
+      print(
+        'DEBUG Move.undo: Timeline l=${timeline.l} before removal: start=${timeline.start}, end=${timeline.end}',
+      );
+
+      // Check if this is the last board in the timeline (affects end)
+      final isLastBoard = createdBoard.t == timeline.end;
+      print(
+        'DEBUG Move.undo: Is last board in timeline: $isLastBoard (board.t=${createdBoard.t}, timeline.end=${timeline.end})',
+      );
+
       timeline.boards[createdBoard.t - timeline.start] = null;
+
+      // Update timeline end if this was the last board
+      if (isLastBoard) {
+        // Find the new end (last non-null board)
+        int newEnd = timeline.end;
+        while (newEnd >= timeline.start &&
+            (newEnd - timeline.start >= timeline.boards.length ||
+                timeline.boards[newEnd - timeline.start] == null)) {
+          newEnd--;
+        }
+        final oldEnd = timeline.end;
+        timeline.end = newEnd;
+        print('DEBUG Move.undo: Updated timeline end from $oldEnd to $newEnd');
+      }
 
       // Remove the board (this will clean up pieces)
       createdBoard.remove();
+      print(
+        'DEBUG Move.undo: Board removed and cleaned up at l=${createdBoard.l}, t=${createdBoard.t}',
+      );
 
       // Reactivate the corresponding used board if it exists
       if (i < usedBoards.length) {
         final usedBoard = usedBoards[i];
+        print(
+          'DEBUG Move.undo: Reactivating used board at l=${usedBoard.l}, t=${usedBoard.t}',
+        );
         usedBoard.makeActive();
       }
     }
@@ -749,9 +901,15 @@ class Move {
     if (isInterDimensionalMove &&
         targetBoard != sourceBoard &&
         targetBoard != null) {
+      print(
+        'DEBUG Move.undo: Checking if timeline branch should be removed: targetBoard l=${targetBoard!.l}',
+      );
       final targetTimeline = game.getTimeline(targetBoard!.l);
       // Check if timeline is now empty
       if (targetTimeline.boardCount == 0) {
+        print(
+          'DEBUG Move.undo: Timeline branch is empty - removing timeline l=${targetBoard!.l}',
+        );
         // Remove the timeline (this is handled by the timeline itself)
         targetTimeline.remove();
 
@@ -759,11 +917,19 @@ class Move {
         final side = targetBoard!.l < 0 ? 0 : 1;
         if (game.timelineCount[side] > 0) {
           game.timelineCount[side] = game.timelineCount[side] - 1;
+          print(
+            'DEBUG Move.undo: Updated timeline count for side $side to ${game.timelineCount[side]}',
+          );
         }
+      } else {
+        print(
+          'DEBUG Move.undo: Timeline branch still has boards (count=${targetTimeline.boardCount}) - not removing',
+        );
       }
     }
 
     _executed = false;
+    print('DEBUG Move.undo: Undo completed');
   }
 
   /// Serialize this move to JSON
