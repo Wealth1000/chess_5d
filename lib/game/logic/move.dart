@@ -432,6 +432,82 @@ class Move {
           sourceBoard: sourceBoardOriginal,
           sourcePiece: finalSourcePiece,
         );
+
+        // Check if this is a castling move (king moves 2 squares horizontally)
+        if (finalSourcePiece.type == PieceType.king &&
+            from != null &&
+            (targetPos.x - from!.x).abs() == 2 &&
+            targetPos.y == from!.y) {
+          print(
+            'DEBUG Castling.execute: CASTLING DETECTED! King from (${from!.x}, ${from!.y}) to (${targetPos.x}, ${targetPos.y})',
+          );
+          // This is a castling move - also move the rook
+          final kingY = targetPos.y;
+          Piece? rook;
+          int rookFromX;
+          int rookToX;
+
+          if (targetPos.x == 6) {
+            // Kingside castling: rook moves from h (7) to f (5)
+            rookFromX = 7;
+            rookToX = 5;
+            print(
+              'DEBUG Castling.execute: Kingside castling - rook from ($rookFromX, $kingY) to ($rookToX, $kingY)',
+            );
+          } else if (targetPos.x == 2) {
+            // Queenside castling: rook moves from a (0) to d (3)
+            rookFromX = 0;
+            rookToX = 3;
+            print(
+              'DEBUG Castling.execute: Queenside castling - rook from ($rookFromX, $kingY) to ($rookToX, $kingY)',
+            );
+          } else {
+            // Not a valid castling move
+            rook = null;
+            rookFromX = -1;
+            rookToX = -1;
+            print(
+              'DEBUG Castling.execute: ERROR - Invalid castling target x=${targetPos.x}',
+            );
+          }
+
+          if (rookFromX >= 0) {
+            // Find the rook on the target board (it should be at rookFromX, kingY)
+            rook = finalTargetBoard.getPiece(rookFromX, kingY);
+            print(
+              'DEBUG Castling.execute: Looking for rook at ($rookFromX, $kingY) on target board: ${rook != null ? "found ${rook.type}" : "not found"}',
+            );
+            if (rook != null &&
+                rook.type == PieceType.rook &&
+                rook.side == finalSourcePiece.side) {
+              print(
+                'DEBUG Castling.execute: Moving rook from ($rookFromX, $kingY) to ($rookToX, $kingY)',
+              );
+              // Move the rook
+              rook.changePosition(
+                finalTargetBoard,
+                rookToX,
+                kingY,
+                sourceBoard: sourceBoardOriginal,
+                sourcePiece: rook,
+              );
+              print('DEBUG Castling.execute: Rook moved successfully');
+            } else {
+              print(
+                'DEBUG Castling.execute: ERROR - Rook not found or invalid: ${rook == null ? "null" : "type=${rook.type}, side=${rook.side}"}',
+              );
+            }
+          }
+        } else if (finalSourcePiece.type == PieceType.king) {
+          // King move but not castling
+          if (from != null) {
+            final xDiff = (targetPos.x - from!.x).abs();
+            final yDiff = (targetPos.y - from!.y).abs();
+            print(
+              'DEBUG Castling.execute: King move (not castling) from (${from!.x}, ${from!.y}) to (${targetPos.x}, ${targetPos.y}), xDiff=$xDiff, yDiff=$yDiff',
+            );
+          }
+        }
       }
 
       // Update castling rights when king or rook moves

@@ -331,6 +331,14 @@ class _BlankBoardsViewState extends State<_BlankBoardsView> {
         });
         _previousTurnCount = currentTurnCount;
       }
+
+      // Check for checkmate and show dialog
+      if (widget.gameProvider.checkmateDetected) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _showCheckmateDialog();
+          widget.gameProvider.clearCheckmateFlag();
+        });
+      }
     });
   }
 
@@ -347,26 +355,95 @@ class _BlankBoardsViewState extends State<_BlankBoardsView> {
     }
   }
 
+  /// Show the checkmate dialog
+  void _showCheckmateDialog() {
+    final context = this.context;
+    final gameProvider = widget.gameProvider;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Prevent dismissing by tapping outside
+      builder: (BuildContext dialogContext) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16.0),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(24.0),
+            constraints: const BoxConstraints(maxWidth: 300),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Title
+                Text(
+                  'Checkmate!',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8.0),
+                // Message
+                Text(
+                  'The game is over. Checkmate has been reached.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24.0),
+                // Return to previous screen button - resets board and goes back
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      // Close the dialog
+                      Navigator.of(dialogContext).pop();
+                      // Reset the game to the beginning
+                      final options = gameProvider.game.options;
+                      final localPlayer = gameProvider.game.localPlayer;
+                      gameProvider.newGame(options, localPlayer);
+                      // Navigate back to the previous page
+                      Navigator.of(context).pop();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16.0),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8.0),
+                      ),
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Return to Previous Screen'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Get all boards from the timeline (main timeline, all turns)
     final timeline = widget.gameProvider.game.getTimeline(0);
     final boards = <Board>[];
 
-    print('DEBUG GameScreen.build: === START BUILD ===');
-    print(
-      'DEBUG GameScreen.build: Timeline l=0, start=${timeline.start}, end=${timeline.end}',
-    );
+    // Debug prints commented out
+    // print('DEBUG GameScreen.build: === START BUILD ===');
+    // print(
+    //   'DEBUG GameScreen.build: Timeline l=0, start=${timeline.start}, end=${timeline.end}',
+    // );
 
     // Get all active boards from the timeline
     final activeBoards = timeline.getActiveBoards();
-    print('DEBUG GameScreen.build: Found ${activeBoards.length} active boards');
+    // print('DEBUG GameScreen.build: Found ${activeBoards.length} active boards');
     for (final board in activeBoards) {
-      print(
-        'DEBUG GameScreen.build: Active board at l=${board.l}, t=${board.t}, active=${board.active}, deleted=${board.deleted}',
-      );
+      // print(
+      //   'DEBUG GameScreen.build: Active board at l=${board.l}, t=${board.t}, active=${board.active}, deleted=${board.deleted}',
+      // );
       if (board.l == 0 && !board.deleted) {
-        print('DEBUG GameScreen.build: Adding active board at t=${board.t}');
+        // print('DEBUG GameScreen.build: Adding active board at t=${board.t}');
         boards.add(board);
       }
     }
@@ -424,11 +501,11 @@ class _BlankBoardsViewState extends State<_BlankBoardsView> {
       }
     }
 
-    print('DEBUG GameScreen.build: Total boards collected: ${boards.length}');
+    // print('DEBUG GameScreen.build: Total boards collected: ${boards.length}');
 
     // If no boards found, create initial board
     if (boards.isEmpty) {
-      print('DEBUG GameScreen.build: No boards found, creating initial board');
+      // print('DEBUG GameScreen.build: No boards found, creating initial board');
       final initialBoard = BoardSetup.createInitialBoard(
         widget.gameProvider.game,
         0,
@@ -440,21 +517,21 @@ class _BlankBoardsViewState extends State<_BlankBoardsView> {
 
     // Sort boards by turn number to ensure correct order
     boards.sort((a, b) => a.t.compareTo(b.t));
-    print(
-      'DEBUG GameScreen.build: Final board count before build: ${boards.length}',
-    );
-    print('DEBUG GameScreen.build: === END BUILD ===');
+    // print(
+    //   'DEBUG GameScreen.build: Final board count before build: ${boards.length}',
+    // );
+    // print('DEBUG GameScreen.build: === END BUILD ===');
 
     return _buildBoardsRow(boards);
   }
 
   Widget _buildBoardsRow(List<Board> boards) {
-    print('DEBUG GameScreen: Building ${boards.length} boards');
-    for (final board in boards) {
-      print(
-        'DEBUG GameScreen: Board at l=${board.l}, t=${board.t}, turn=${board.turn}',
-      );
-    }
+    // print('DEBUG GameScreen: Building ${boards.length} boards');
+    // for (final board in boards) {
+    //   print(
+    //     'DEBUG GameScreen: Board at l=${board.l}, t=${board.t}, turn=${board.turn}',
+    //   );
+    // }
 
     return LayoutBuilder(
       builder: (context, constraints) {

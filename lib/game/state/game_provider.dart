@@ -147,8 +147,26 @@ class GameProvider extends ChangeNotifier {
 
     // Validate king moves according to chess rules
     if (piece.type == PieceType.king && piece.board != null) {
+      // Check if this is a castling move (king moves 2 squares horizontally)
+      final isCastlingMove =
+          (targetPos.x - piece.x).abs() == 2 && targetPos.y == piece.y;
+      if (isCastlingMove) {
+        print(
+          'DEBUG GameProvider.makeMove: Validating castling move from (${piece.x}, ${piece.y}) to (${targetPos.x}, ${targetPos.y})',
+        );
+      }
       if (!_isValidKingMove(piece, targetPos, piece.board as Board)) {
+        if (isCastlingMove) {
+          print(
+            'DEBUG GameProvider.makeMove: Castling move FAILED _isValidKingMove validation',
+          );
+        }
         return false;
+      }
+      if (isCastlingMove) {
+        print(
+          'DEBUG GameProvider.makeMove: Castling move PASSED _isValidKingMove validation',
+        );
       }
     }
 
@@ -169,6 +187,9 @@ class GameProvider extends ChangeNotifier {
 
       if (wouldLeaveInCheck) {
         // Move would leave king in check - illegal move
+        print(
+          'DEBUG GameProvider.makeMove: Move rejected - would leave king in check. Piece: ${piece.type} at (${piece.x}, ${piece.y}), target: (${targetPos.x}, ${targetPos.y}) at l=${targetPos.l}, t=${targetPos.t}',
+        );
         return false;
       }
     }
@@ -483,7 +504,20 @@ class GameProvider extends ChangeNotifier {
     final dx = targetPos.x - piece.x;
     final dy = targetPos.y - piece.y;
 
-    // Kings move one square in any direction (including diagonals)
+    // Check if this is a castling move (king moves 2 squares horizontally, same rank)
+    final isCastlingMove = dx.abs() == 2 && dy == 0;
+
+    if (isCastlingMove) {
+      print(
+        'DEBUG GameProvider._isValidKingMove: Detected castling move - allowing it',
+      );
+      // Castling is validated separately in MovementPatterns._canCastleKingside/Queenside
+      // and in getLegalMovesForPiece (check validation)
+      // So we just need to allow it here
+      return true;
+    }
+
+    // Regular king moves: one square in any direction (including diagonals)
     // dx and dy must both be -1, 0, or 1
     if (dx.abs() > 1 || dy.abs() > 1) {
       return false; // Too far
@@ -500,7 +534,6 @@ class GameProvider extends ChangeNotifier {
       return false; // Can't capture friendly piece
     }
 
-    // King can only move one square in any direction (castling removed)
     // Valid king move (one square in any direction)
     return true;
   }
@@ -587,12 +620,28 @@ class GameProvider extends ChangeNotifier {
       _selectedPiece = null;
       _legalMoves = [];
 
+      // Check for checkmate after moves are submitted
+      // The turn has advanced, so check if the current player (whose turn it now is) is in checkmate
+      if (_game.isCheckmate()) {
+        _checkmateDetected = true;
+      }
+
       // Force UI update - notify listeners so the board view rebuilds
       notifyListeners();
 
       return true;
     }
     return false;
+  }
+
+  /// Whether checkmate was detected in the last move submission
+  bool get checkmateDetected => _checkmateDetected;
+  bool _checkmateDetected = false;
+
+  /// Clear the checkmate detected flag (after dialog is shown)
+  void clearCheckmateFlag() {
+    _checkmateDetected = false;
+    notifyListeners();
   }
 
   /// Start a new game
@@ -621,10 +670,24 @@ class GameProvider extends ChangeNotifier {
 
     // Get all possible moves for this piece
     final allMoves = piece.enumerateMoves();
+    print(
+      'DEBUG GameProvider.getLegalMovesForPiece: Found ${allMoves.length} possible moves for ${piece.type} at (${piece.x}, ${piece.y})',
+    );
 
     // Filter out illegal moves (moves that would leave king in check)
     final legalMoves = <Vec4>[];
     for (final move in allMoves) {
+      // Check if this is a castling move (king moves 2 squares horizontally)
+      final isCastlingMove =
+          piece.type == PieceType.king &&
+          (move.x - piece.x).abs() == 2 &&
+          move.y == piece.y;
+      if (isCastlingMove) {
+        print(
+          'DEBUG GameProvider.getLegalMovesForPiece: Found potential castling move to (${move.x}, ${move.y}) at l=${move.l}, t=${move.t}',
+        );
+      }
+
       try {
         // Use CheckDetector to check if move would leave king in check
         final wouldLeaveInCheck =
@@ -636,14 +699,33 @@ class GameProvider extends ChangeNotifier {
             );
 
         if (!wouldLeaveInCheck) {
+          if (isCastlingMove) {
+            print(
+              'DEBUG GameProvider.getLegalMovesForPiece: Castling move to (${move.x}, ${move.y}) is LEGAL - adding to legalMoves',
+            );
+          }
           legalMoves.add(move);
+        } else {
+          if (isCastlingMove) {
+            print(
+              'DEBUG GameProvider.getLegalMovesForPiece: Castling move to (${move.x}, ${move.y}) is ILLEGAL - would leave king in check',
+            );
+          }
         }
       } catch (e) {
         // Invalid move, skip it
+        if (isCastlingMove) {
+          print(
+            'DEBUG GameProvider.getLegalMovesForPiece: Castling move to (${move.x}, ${move.y}) threw exception: $e',
+          );
+        }
         continue;
       }
     }
 
+    print(
+      'DEBUG GameProvider.getLegalMovesForPiece: Returning ${legalMoves.length} legal moves',
+    );
     return legalMoves;
   }
 
@@ -703,8 +785,29 @@ class GameProvider extends ChangeNotifier {
       // Otherwise, try to move the selected piece to this square
       // No chess rules validation - just move it
       print(
-        'DEBUG GameProvider.handleSquareTap: Calling makeMove with targetPos l=${position.l}, t=${position.t}',
+        'DEBUG GameProvider.handleSquareTap: Calling makeMove with targetPos l=${position.l}, t=${position.t}, x=${position.x}, y=${position.y}',
       );
+      // Check if this is a castling move
+      final isCastlingMove =
+          _selectedPiece!.type == PieceType.king &&
+          (position.x - _selectedPiece!.x).abs() == 2 &&
+          position.y == _selectedPiece!.y;
+      if (isCastlingMove) {
+        print(
+          'DEBUG GameProvider.handleSquareTap: DETECTED CASTLING MOVE! King from (${_selectedPiece!.x}, ${_selectedPiece!.y}) to (${position.x}, ${position.y})',
+        );
+        // Check if this move is in legalMoves
+        final isLegalCastling = _legalMoves.any(
+          (move) =>
+              move.x == position.x &&
+              move.y == position.y &&
+              move.l == position.l &&
+              move.t == position.t,
+        );
+        print(
+          'DEBUG GameProvider.handleSquareTap: Castling move is in legalMoves: $isLegalCastling',
+        );
+      }
       makeMove(_selectedPiece!, position, null);
     } else {
       // No piece selected, check if there's a piece on this square

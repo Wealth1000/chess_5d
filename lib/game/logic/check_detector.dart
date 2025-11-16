@@ -291,24 +291,15 @@ class CheckDetector {
     tempBoard.setPiece(targetPos.x, targetPos.y, tempPiece);
 
     // Check if the king of the moving piece's side is in check across all timelines
-    // Note: For cross-timeline checking, we need to check the target board after the move
-    // Since we're moving to a different timeline/board, we need to check the target board's king
-    if (targetPos.l != board.l || targetPos.t != board.t) {
-      // Moving to a different board - check the target board's king
-      final targetTimeline = game.getTimeline(targetPos.l);
-      final targetBoard = targetTimeline.getBoard(targetPos.t);
-      if (targetBoard != null) {
-        // After the move, the piece will be on the target board
-        // Check if the king on the target board (or source board) is in check
-        return CheckDetector.isKingInCheckCrossTimeline(
-          game,
-          tempBoard,
-          piece.side,
-        );
-      }
-    }
-
-    // Moving on the same board - check if king is in check after move
+    // Note: We always check the tempBoard (with the move applied) regardless of whether
+    // we're moving to a new board or staying on the same board. This correctly handles:
+    // - Same board moves: Check if king is in check after move
+    // - Moves to next turn (targetBoard == null): Check if king is in check after move on tempBoard
+    // - Inter-dimensional moves (targetBoard exists): Check if king is in check after move on tempBoard
+    //
+    // When moving to next turn, the target board doesn't exist yet, but we still need to
+    // check if the king would be in check after the move. The tempBoard represents the state
+    // after the move is applied, so we check that.
     return CheckDetector.isKingInCheckCrossTimeline(
       game,
       tempBoard,

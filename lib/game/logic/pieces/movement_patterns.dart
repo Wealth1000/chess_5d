@@ -1,6 +1,7 @@
 import 'package:chess_5d/game/logic/piece.dart';
 import 'package:chess_5d/game/logic/board.dart';
 import 'package:chess_5d/game/logic/position.dart';
+import 'package:chess_5d/game/logic/check_detector.dart';
 
 /// Helper class for piece movement patterns
 ///
@@ -190,56 +191,222 @@ class MovementPatterns {
       }
     }
 
-    // Castling removed - king can only move one square
+    // Castling moves (only on same board, not when targetL is specified)
+    // IMPORTANT: Only check castling if it's this piece's turn (when checking moves for current player)
+    // Skip castling checks during check detection (when validating moves for other players)
+    if (targetL == null && piece.game != null && board.turn == piece.side) {
+      print(
+        'DEBUG Castling: Checking castling for king at (${piece.x}, ${piece.y}), side=${piece.side}, board.turn=${board.turn}, hasMoved=${piece.hasMoved}',
+      );
+      print(
+        'DEBUG Castling: Board castling rights: ${board.castleAvailable.toRadixString(2)}',
+      );
+
+      // Kingside castling: king moves to g-file (x=6)
+      final canKingside = _canCastleKingside(piece, board, piece.game);
+      print('DEBUG Castling: Kingside castling possible: $canKingside');
+      if (canKingside) {
+        final castlingPos = Vec4(6, piece.y, l, t);
+        if (castlingPos.isValid()) {
+          print(
+            'DEBUG Castling: Adding kingside castling move to (${castlingPos.x}, ${castlingPos.y}) at l=${castlingPos.l}, t=${castlingPos.t}',
+          );
+          moves.add(castlingPos);
+        }
+      }
+
+      // Queenside castling: king moves to c-file (x=2)
+      final canQueenside = _canCastleQueenside(piece, board, piece.game);
+      print('DEBUG Castling: Queenside castling possible: $canQueenside');
+      if (canQueenside) {
+        final castlingPos = Vec4(2, piece.y, l, t);
+        if (castlingPos.isValid()) {
+          print(
+            'DEBUG Castling: Adding queenside castling move to (${castlingPos.x}, ${castlingPos.y}) at l=${castlingPos.l}, t=${castlingPos.t}',
+          );
+          moves.add(castlingPos);
+        }
+      }
+    } else {
+      if (targetL != null) {
+        print(
+          'DEBUG Castling: Skipping castling - targetL is not null (inter-dimensional move)',
+        );
+      } else if (piece.game == null) {
+        print('DEBUG Castling: Skipping castling - piece.game is null');
+      } else if (board.turn != piece.side) {
+        print(
+          'DEBUG Castling: Skipping castling - not this player\'s turn (board.turn=${board.turn}, piece.side=${piece.side})',
+        );
+      }
+    }
 
     return moves;
   }
 
   /// Check if kingside castling is possible
-  static bool _canCastleKingside(Piece king, Board board) {
-    if (king.hasMoved) return false;
-    if (king.x != 4) return false; // King must be on e-file
-    if (king.side == 0 && king.y != 0) return false; // Black king on rank 0
-    if (king.side == 1 && king.y != 7) return false; // White king on rank 7
+  ///
+  /// [king] - The king piece
+  /// [board] - The board to check on
+  /// [game] - The game instance (for check detection)
+  static bool _canCastleKingside(Piece king, Board board, dynamic game) {
+    print('DEBUG Castling._canCastleKingside: Checking kingside castling');
+
+    if (king.hasMoved) {
+      print('DEBUG Castling._canCastleKingside: Failed - king has moved');
+      return false;
+    }
+    if (king.x != 4) {
+      print(
+        'DEBUG Castling._canCastleKingside: Failed - king not on e-file (x=${king.x})',
+      );
+      return false; // King must be on e-file
+    }
+    if (king.side == 0 && king.y != 0) {
+      print(
+        'DEBUG Castling._canCastleKingside: Failed - black king not on rank 0 (y=${king.y})',
+      );
+      return false; // Black king on rank 0
+    }
+    if (king.side == 1 && king.y != 7) {
+      print(
+        'DEBUG Castling._canCastleKingside: Failed - white king not on rank 7 (y=${king.y})',
+      );
+      return false; // White king on rank 7
+    }
 
     // Check if castling rights exist
     final rights = board.castleAvailable;
     if (king.side == 0 && !CastlingRights.canBlackCastleKingside(rights)) {
+      print(
+        'DEBUG Castling._canCastleKingside: Failed - black kingside castling rights not available',
+      );
       return false;
     }
     if (king.side == 1 && !CastlingRights.canWhiteCastleKingside(rights)) {
+      print(
+        'DEBUG Castling._canCastleKingside: Failed - white kingside castling rights not available',
+      );
       return false;
     }
 
     // Check if squares between king and rook are empty
     if (board.getPiece(5, king.y) != null ||
         board.getPiece(6, king.y) != null) {
+      print(
+        'DEBUG Castling._canCastleKingside: Failed - squares between king and rook are not empty',
+      );
       return false;
     }
 
     // Check if rook exists and hasn't moved
     final rook = board.getPiece(7, king.y);
     if (rook == null || rook.type != PieceType.rook || rook.hasMoved) {
+      print(
+        'DEBUG Castling._canCastleKingside: Failed - rook at (7, ${king.y}) is ${rook == null ? "null" : "type=${rook.type}, hasMoved=${rook.hasMoved}"}',
+      );
       return false;
     }
 
-    // TODO: Check if king is in check or would pass through check (needs check detection)
+    // Check if king is in check
+    final inCheck = CheckDetector.isKingInCheckCrossTimeline(
+      game,
+      board,
+      king.side,
+    );
+    if (inCheck) {
+      print('DEBUG Castling._canCastleKingside: Failed - king is in check');
+      return false;
+    }
+
+    // Check if king would pass through check (f1/f8 and g1/g8)
+    // Create temporary board to test if squares are attacked
+    final tempBoard = Board.fromBoard(board);
+    final tempKing = tempBoard.getPiece(king.x, king.y);
+    if (tempKing == null) {
+      print('DEBUG Castling._canCastleKingside: Failed - tempKing is null');
+      return false;
+    }
+
+    // Check square f (5) - king passes through here
+    tempBoard.setPiece(king.x, king.y, null);
+    tempBoard.setPiece(5, king.y, tempKing);
+    final checkOnF = CheckDetector.isKingInCheckCrossTimeline(
+      game,
+      tempBoard,
+      king.side,
+    );
+    if (checkOnF) {
+      print(
+        'DEBUG Castling._canCastleKingside: Failed - king would pass through check at f (5, ${king.y})',
+      );
+      return false;
+    }
+
+    // Check square g (6) - king ends here
+    tempBoard.setPiece(5, king.y, null);
+    tempBoard.setPiece(6, king.y, tempKing);
+    final checkOnG = CheckDetector.isKingInCheckCrossTimeline(
+      game,
+      tempBoard,
+      king.side,
+    );
+    if (checkOnG) {
+      print(
+        'DEBUG Castling._canCastleKingside: Failed - king would end in check at g (6, ${king.y})',
+      );
+      return false;
+    }
+
+    print(
+      'DEBUG Castling._canCastleKingside: SUCCESS - kingside castling is legal',
+    );
     return true;
   }
 
   /// Check if queenside castling is possible
-  static bool _canCastleQueenside(Piece king, Board board) {
-    if (king.hasMoved) return false;
-    if (king.x != 4) return false; // King must be on e-file
-    if (king.side == 0 && king.y != 0) return false; // Black king on rank 0
-    if (king.side == 1 && king.y != 7) return false; // White king on rank 7
+  ///
+  /// [king] - The king piece
+  /// [board] - The board to check on
+  /// [game] - The game instance (for check detection)
+  static bool _canCastleQueenside(Piece king, Board board, dynamic game) {
+    print('DEBUG Castling._canCastleQueenside: Checking queenside castling');
+
+    if (king.hasMoved) {
+      print('DEBUG Castling._canCastleQueenside: Failed - king has moved');
+      return false;
+    }
+    if (king.x != 4) {
+      print(
+        'DEBUG Castling._canCastleQueenside: Failed - king not on e-file (x=${king.x})',
+      );
+      return false; // King must be on e-file
+    }
+    if (king.side == 0 && king.y != 0) {
+      print(
+        'DEBUG Castling._canCastleQueenside: Failed - black king not on rank 0 (y=${king.y})',
+      );
+      return false; // Black king on rank 0
+    }
+    if (king.side == 1 && king.y != 7) {
+      print(
+        'DEBUG Castling._canCastleQueenside: Failed - white king not on rank 7 (y=${king.y})',
+      );
+      return false; // White king on rank 7
+    }
 
     // Check if castling rights exist
     final rights = board.castleAvailable;
     if (king.side == 0 && !CastlingRights.canBlackCastleQueenside(rights)) {
+      print(
+        'DEBUG Castling._canCastleQueenside: Failed - black queenside castling rights not available',
+      );
       return false;
     }
     if (king.side == 1 && !CastlingRights.canWhiteCastleQueenside(rights)) {
+      print(
+        'DEBUG Castling._canCastleQueenside: Failed - white queenside castling rights not available',
+      );
       return false;
     }
 
@@ -247,16 +414,74 @@ class MovementPatterns {
     if (board.getPiece(1, king.y) != null ||
         board.getPiece(2, king.y) != null ||
         board.getPiece(3, king.y) != null) {
+      print(
+        'DEBUG Castling._canCastleQueenside: Failed - squares between king and rook are not empty',
+      );
       return false;
     }
 
     // Check if rook exists and hasn't moved
     final rook = board.getPiece(0, king.y);
     if (rook == null || rook.type != PieceType.rook || rook.hasMoved) {
+      print(
+        'DEBUG Castling._canCastleQueenside: Failed - rook at (0, ${king.y}) is ${rook == null ? "null" : "type=${rook.type}, hasMoved=${rook.hasMoved}"}',
+      );
       return false;
     }
 
-    // TODO: Check if king is in check or would pass through check (needs check detection)
+    // Check if king is in check
+    final inCheck = CheckDetector.isKingInCheckCrossTimeline(
+      game,
+      board,
+      king.side,
+    );
+    if (inCheck) {
+      print('DEBUG Castling._canCastleQueenside: Failed - king is in check');
+      return false;
+    }
+
+    // Check if king would pass through check (b1/b8, c1/c8, d1/d8)
+    // Create temporary board to test if squares are attacked
+    final tempBoard = Board.fromBoard(board);
+    final tempKing = tempBoard.getPiece(king.x, king.y);
+    if (tempKing == null) {
+      print('DEBUG Castling._canCastleQueenside: Failed - tempKing is null');
+      return false;
+    }
+
+    // Check square d (3) - king passes through here
+    tempBoard.setPiece(king.x, king.y, null);
+    tempBoard.setPiece(3, king.y, tempKing);
+    final checkOnD = CheckDetector.isKingInCheckCrossTimeline(
+      game,
+      tempBoard,
+      king.side,
+    );
+    if (checkOnD) {
+      print(
+        'DEBUG Castling._canCastleQueenside: Failed - king would pass through check at d (3, ${king.y})',
+      );
+      return false;
+    }
+
+    // Check square c (2) - king ends here
+    tempBoard.setPiece(3, king.y, null);
+    tempBoard.setPiece(2, king.y, tempKing);
+    final checkOnC = CheckDetector.isKingInCheckCrossTimeline(
+      game,
+      tempBoard,
+      king.side,
+    );
+    if (checkOnC) {
+      print(
+        'DEBUG Castling._canCastleQueenside: Failed - king would end in check at c (2, ${king.y})',
+      );
+      return false;
+    }
+
+    print(
+      'DEBUG Castling._canCastleQueenside: SUCCESS - queenside castling is legal',
+    );
     return true;
   }
 
