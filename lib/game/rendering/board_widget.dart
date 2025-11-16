@@ -157,7 +157,19 @@ class BoardWidget extends StatelessWidget {
             child: GestureDetector(
               onTap: () async {
                 if (onSquareTapped != null) {
-                  final square = Vec4(x, y, board.l, board.t);
+                  // Check if this square matches a legal move - if so, use the legal move's position
+                  // (which has the correct t value for next turn)
+                  // This is important for captures, which should target the next turn
+                  Vec4? square;
+                  for (final move in legalMoves) {
+                    if (move.x == x && move.y == y) {
+                      // Found matching legal move - use its position (has correct l and t)
+                      square = move;
+                      break;
+                    }
+                  }
+                  // If no matching legal move, use current board's position (for piece selection)
+                  square ??= Vec4(x, y, board.l, board.t);
                   await onSquareTapped!(square);
                 }
               },
@@ -180,6 +192,7 @@ class BoardWidget extends StatelessWidget {
   }
 
   /// Get the square coordinates from a tap position
+  /// If the tapped square matches a legal move, use the legal move's position (which has correct t value)
   Vec4? _getSquareFromPosition(Offset position, double boardSize) {
     final squareSize = boardSize / 8;
     final x = (position.dx / squareSize).floor();
@@ -192,6 +205,16 @@ class BoardWidget extends StatelessWidget {
     final displayX = flipBoard ? 7 - x : x;
     final displayY = flipBoard ? 7 - y : y;
 
+    // Check if this square matches a legal move - if so, use the legal move's position
+    // (which has the correct t value for next turn)
+    for (final move in legalMoves) {
+      if (move.x == displayX && move.y == displayY) {
+        // Found matching legal move - use its position (has correct l and t)
+        return move;
+      }
+    }
+
+    // No matching legal move - use current board's position (for piece selection)
     return Vec4(displayX, displayY, board.l, board.t);
   }
 }

@@ -157,7 +157,26 @@ class GameProvider extends ChangeNotifier {
       return false; // Not this player's turn
     }
 
+    // Check if this move would leave the king in check (cross-timeline)
+    if (piece.board != null) {
+      final wouldLeaveInCheck =
+          CheckDetector.wouldMoveLeaveKingInCheckCrossTimeline(
+            _game,
+            piece.board as Board,
+            piece,
+            targetPos,
+          );
+
+      if (wouldLeaveInCheck) {
+        // Move would leave king in check - illegal move
+        return false;
+      }
+    }
+
     // Bypass game.move() which has turn validation - use applyMove directly
+    print(
+      'DEBUG GameProvider.makeMove: Making move with piece at l=${piece.board?.l}, t=${piece.board?.t}, targetPos: l=${targetPos.l}, t=${targetPos.t}',
+    );
     try {
       final move = _game.instantiateMove(
         piece,
@@ -166,7 +185,12 @@ class GameProvider extends ChangeNotifier {
         false,
         false,
       );
+      print('DEBUG GameProvider.makeMove: Move created, applying...');
       _game.applyMove(move, false);
+      print(
+        'DEBUG GameProvider.makeMove: Move applied, timeline end is now ${_game.getTimeline(0).end}',
+      );
+      _game.findChecks(); // Ensure checks are found after move
       _game.checkSubmitAvailable();
 
       // Deselect piece after move
@@ -228,15 +252,14 @@ class GameProvider extends ChangeNotifier {
       return false; // Invalid forward move
     }
 
-    // Diagonal capture (must capture an enemy piece)
+    // Diagonal capture (must capture an enemy piece or en passant)
     if (dx.abs() == 1 && dy == direction) {
       final targetPiece = board.getPiece(targetPos.x, targetPos.y);
       if (targetPiece != null && targetPiece.side != piece.side) {
         // Valid capture - enemy piece on diagonal
         return true;
       }
-      // TODO: Check en-passant (for now, allow if it's a valid diagonal move)
-      // En-passant would be valid here if conditions are met
+
       return false; // Diagonal move requires capture
     }
 
@@ -477,8 +500,8 @@ class GameProvider extends ChangeNotifier {
       return false; // Can't capture friendly piece
     }
 
+    // King can only move one square in any direction (castling removed)
     // Valid king move (one square in any direction)
-    // TODO: Add castling validation if needed
     return true;
   }
 
@@ -563,7 +586,10 @@ class GameProvider extends ChangeNotifier {
     if (result['submitted'] == true) {
       _selectedPiece = null;
       _legalMoves = [];
+
+      // Force UI update - notify listeners so the board view rebuilds
       notifyListeners();
+
       return true;
     }
     return false;
@@ -630,12 +656,11 @@ class GameProvider extends ChangeNotifier {
 
     // Show legal moves for pawns and bishops
     if (_selectedPiece!.type == PieceType.pawn ||
-        _selectedPiece!.type == PieceType.bishop || 
+        _selectedPiece!.type == PieceType.bishop ||
         _selectedPiece!.type == PieceType.rook ||
         _selectedPiece!.type == PieceType.queen ||
         _selectedPiece!.type == PieceType.king ||
-        _selectedPiece!.type == PieceType.knight
-        ) {
+        _selectedPiece!.type == PieceType.knight) {
       _legalMoves = getLegalMovesForPiece(_selectedPiece!);
     } else {
       _legalMoves = [];
@@ -646,6 +671,15 @@ class GameProvider extends ChangeNotifier {
   ///
   /// [position] - The position that was tapped
   void handleSquareTap(Vec4 position) {
+    print(
+      'DEBUG GameProvider.handleSquareTap: Tapped position l=${position.l}, t=${position.t}, x=${position.x}, y=${position.y}',
+    );
+    if (_selectedPiece != null) {
+      print(
+        'DEBUG GameProvider.handleSquareTap: Selected piece at l=${_selectedPiece!.board?.l}, t=${_selectedPiece!.board?.t}, x=${_selectedPiece!.x}, y=${_selectedPiece!.y}',
+      );
+    }
+
     // If a piece is selected, try to make a move
     if (_selectedPiece != null) {
       // Check if tapping the same square (deselect)
@@ -668,6 +702,9 @@ class GameProvider extends ChangeNotifier {
 
       // Otherwise, try to move the selected piece to this square
       // No chess rules validation - just move it
+      print(
+        'DEBUG GameProvider.handleSquareTap: Calling makeMove with targetPos l=${position.l}, t=${position.t}',
+      );
       makeMove(_selectedPiece!, position, null);
     } else {
       // No piece selected, check if there's a piece on this square

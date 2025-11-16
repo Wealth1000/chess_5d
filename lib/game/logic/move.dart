@@ -47,28 +47,84 @@ class Move {
       throw StateError('Cannot create move: source piece is not on a board');
     }
 
+    print(
+      'DEBUG Move.constructor: === START === Creating move for ${sourcePiece.type} from (${from?.x}, ${from?.y}) to (${targetPos.x}, ${targetPos.y}) at l=${targetPos.l}, t=${targetPos.t}',
+    );
+    print(
+      'DEBUG Move.constructor: Source board: l=${sourceBoardOriginal.l}, t=${sourceBoardOriginal.t}, turn=${sourceBoardOriginal.turn}',
+    );
+
     // Get the target board from the timeline
     final targetTimeline = game.getTimeline(targetPos.l);
     var targetOriginBoard = targetTimeline.getBoard(targetPos.t);
 
+    // Check if this is a capture move
+    // IMPORTANT: For captures moving to next turn, the enemy piece is on the SOURCE board
+    // (not the target board, which doesn't exist yet)
+    final enemyPieceOnSourceBoard = sourceBoardOriginal.getPiece(
+      targetPos.x,
+      targetPos.y,
+    );
+    final isCapture =
+        enemyPieceOnSourceBoard != null &&
+        enemyPieceOnSourceBoard.side != sourcePiece.side;
+
+    print(
+      'DEBUG Move.constructor: Target board at l=${targetPos.l}, t=${targetPos.t}: ${targetOriginBoard != null ? "exists" : "null"}',
+    );
+    if (isCapture) {
+      print(
+        'DEBUG Move.constructor: This is a CAPTURE move - capturing ${enemyPieceOnSourceBoard.type} at (${targetPos.x}, ${targetPos.y}) on source board',
+      );
+    }
+
     // Get source timeline
+    // Debug prints commented out
+    // print('DEBUG Move.constructor: Creating move');
+    // print(
+    //   'DEBUG Move.constructor: sourcePiece: ${sourcePiece.type}, side=${sourcePiece.side}',
+    // );
+    // final fromStr = from != null
+    //     ? "x=${from!.x}, y=${from!.y}, l=${from!.l}, t=${from!.t}"
+    //     : "null";
+    // print('DEBUG Move.constructor: from: $fromStr');
+    // print(
+    //   'DEBUG Move.constructor: to: x=${targetPos.x}, y=${targetPos.y}, l=${targetPos.l}, t=${targetPos.t}',
+    // );
+    // print(
+    //   'DEBUG Move.constructor: sourceBoardOriginal: l=${sourceBoardOriginal.l}, t=${sourceBoardOriginal.t}',
+    // );
+
     final sourceTimeline = game.getTimeline(sourceBoardOriginal.l);
 
     // If target board doesn't exist, we need to create it
     // This happens when moving to the next turn on the same timeline
     if (targetOriginBoard == null) {
+      print(
+        'DEBUG Move.constructor: Target board is null - checking if we should create it',
+      );
       // Check if we're moving to the next turn on the same timeline
       if (targetPos.l == sourceBoardOriginal.l &&
           targetPos.t == sourceBoardOriginal.t + 1) {
         // This is a normal move to the next turn - we'll create the board below
         // For now, we'll use the source board as the "target origin" to clone from
+        print(
+          'DEBUG Move.constructor: Target board is null, but moving to next turn - will create new board',
+        );
         targetOriginBoard = sourceBoardOriginal;
       } else {
         // Cannot move to a non-existent board on a different timeline or turn
+        print(
+          'DEBUG Move.constructor: ERROR - Cannot create move: target board does not exist at timeline ${targetPos.l}, turn ${targetPos.t} (source: l=${sourceBoardOriginal.l}, t=${sourceBoardOriginal.t})',
+        );
         throw StateError(
           'Cannot create move: target board does not exist at timeline ${targetPos.l}, turn ${targetPos.t}',
         );
       }
+    } else {
+      print(
+        'DEBUG Move.constructor: Target board exists at t=${targetOriginBoard.t}',
+      );
     }
 
     // Track used boards (boards that will become inactive)
@@ -146,9 +202,57 @@ class Move {
     } else {
       // Case 3: Moving on the same board (normal move)
       // Check if we're moving to the next turn (board needs to be created)
-      if (targetOriginBoard == sourceBoardOriginal &&
+      print(
+        'DEBUG Move.constructor: Checking move type - targetOriginBoard==sourceBoardOriginal: ${targetOriginBoard == sourceBoardOriginal}, targetPos.l==source.l: ${targetPos.l == sourceBoardOriginal.l}, targetPos.t==source.t+1: ${targetPos.t == sourceBoardOriginal.t + 1}',
+      );
+
+      // For captures: targetOriginBoard might exist (if capturing on same turn board)
+      // but we still want to create a new board at t+1 for the capture
+      // So we need to check: if it's a capture and targetOriginBoard exists at t+1,
+      // we should still create a new board (the targetOriginBoard is the one we're capturing on)
+
+      final shouldCreateNewBoard =
+          targetOriginBoard == sourceBoardOriginal &&
           targetPos.l == sourceBoardOriginal.l &&
-          targetPos.t == sourceBoardOriginal.t + 1) {
+          targetPos.t == sourceBoardOriginal.t + 1;
+
+      print(
+        'DEBUG Move.constructor: shouldCreateNewBoard=$shouldCreateNewBoard',
+      );
+      print(
+        'DEBUG Move.constructor:   - targetOriginBoard==sourceBoardOriginal: ${targetOriginBoard == sourceBoardOriginal}',
+      );
+      print(
+        'DEBUG Move.constructor:   - targetPos.l==source.l: ${targetPos.l == sourceBoardOriginal.l} (targetPos.l=${targetPos.l}, source.l=${sourceBoardOriginal.l})',
+      );
+      print(
+        'DEBUG Move.constructor:   - targetPos.t==source.t+1: ${targetPos.t == sourceBoardOriginal.t + 1} (targetPos.t=${targetPos.t}, source.t=${sourceBoardOriginal.t}, source.t+1=${sourceBoardOriginal.t + 1})',
+      );
+      if (isCapture) {
+        print(
+          'DEBUG Move.constructor: This is a CAPTURE - will create new board if shouldCreateNewBoard is true',
+        );
+        if (!shouldCreateNewBoard) {
+          print(
+            'DEBUG Move.constructor: ERROR - Capture detected but shouldCreateNewBoard is FALSE! This is wrong!',
+          );
+        }
+      }
+
+      // If targetOriginBoard exists but is NOT the source board, and we're moving to next turn,
+      // we might be capturing on an existing board at next turn - this shouldn't happen normally,
+      // but if it does, we need to handle it
+      final isCaptureOnNextTurn =
+          targetOriginBoard != null &&
+          targetOriginBoard != sourceBoardOriginal &&
+          targetPos.l == sourceBoardOriginal.l &&
+          targetPos.t == sourceBoardOriginal.t + 1 &&
+          isCapture;
+
+      if (shouldCreateNewBoard || isCaptureOnNextTurn) {
+        print(
+          'DEBUG Move.constructor: Moving to next turn - creating new board at t=${targetPos.t}${isCapture ? " (CAPTURE MOVE)" : ""}',
+        );
         // Moving to next turn on same timeline - create new board at next turn
         sourceBoard = game.instantiateBoard(
           sourceBoardOriginal.l,
@@ -160,8 +264,14 @@ class Move {
 
         // Update source board in timeline
         sourceTimeline.setBoard(sourceBoardOriginal.t, sourceBoard!);
+        print(
+          'DEBUG Move.constructor: Source board set at t=${sourceBoardOriginal.t}',
+        );
 
         // Create target board at next turn
+        print(
+          'DEBUG Move.constructor: Creating target board at l=${targetPos.l}, t=${targetPos.t}, turn=${1 - sourceBoardOriginal.turn}',
+        );
         targetBoard = game.instantiateBoard(
           targetPos.l,
           targetPos.t,
@@ -171,9 +281,23 @@ class Move {
         );
 
         // Set target board in timeline
+        print(
+          'DEBUG Move.constructor: Setting target board in timeline at t=${targetPos.t}',
+        );
         sourceTimeline.setBoard(targetPos.t, targetBoard!);
+        print(
+          'DEBUG Move.constructor: Target board set! Timeline end is now ${sourceTimeline.end}',
+        );
       } else {
         // Moving on the same board (same turn)
+        print(
+          'DEBUG Move.constructor: Moving on same board (same turn) - NOT creating new board at t=${targetPos.t}',
+        );
+        if (isCapture) {
+          print(
+            'DEBUG Move.constructor: WARNING - This is a capture but falling into "same board" branch! This might be wrong!',
+          );
+        }
         sourceBoard = game.instantiateBoard(
           sourceBoardOriginal.l,
           sourceBoardOriginal.t,
@@ -185,6 +309,9 @@ class Move {
 
         // Update the board in its timeline
         sourceTimeline.setBoard(sourceBoardOriginal.t, sourceBoard!);
+        print(
+          'DEBUG Move.constructor: Same board updated at t=${sourceBoardOriginal.t}, timeline end remains ${sourceTimeline.end}',
+        );
       }
 
       isInterDimensionalMove = false;
@@ -192,34 +319,48 @@ class Move {
 
     // Track created boards (sourceBoard is guaranteed to be non-null here)
     createdBoards.add(sourceBoard!);
-    if (isInterDimensionalMove &&
+    // Always add targetBoard if it exists and is different from sourceBoard
+    // This includes normal moves to next turn (not just inter-dimensional moves)
+    if (targetBoard != null &&
         targetBoard != sourceBoard &&
-        targetBoard != null) {
+        !createdBoards.contains(targetBoard)) {
       createdBoards.add(targetBoard!);
+      print(
+        'DEBUG Move.constructor: Added targetBoard to createdBoards: l=${targetBoard!.l}, t=${targetBoard!.t}',
+      );
     }
 
-    // Remove piece at target position if it exists
-    final targetPiece = targetBoard?.getPiece(targetPos.x, targetPos.y);
-    if (targetPiece != null) {
-      targetPiece.remove();
-    }
-
-    // Move the piece (or promote if needed)
-    final sourcePieceOnSourceBoard = sourceBoard?.getPiece(from!.x, from!.y);
-    if (sourcePieceOnSourceBoard == null) {
-      throw StateError('Source piece not found on source board');
-    }
+    // Algorithm: En Passant Handling
+    // A. On Every Move Made:
+    // 1. If the moved piece is NOT a pawn: Clear enPassantTargetSquare
+    // 2. If the moved piece IS a pawn:
+    //    - If pawn moved 2 squares forward: Set enPassantTargetSquare to the square behind the pawn
+    //    - Otherwise: Clear enPassantTargetSquare
 
     final finalTargetBoard = targetBoard;
     if (finalTargetBoard == null) {
       throw StateError('Target board is null');
     }
 
+    // Remove piece at target position if it exists (on target board)
+    final targetPiece = finalTargetBoard.getPiece(targetPos.x, targetPos.y);
+    if (targetPiece != null) {
+      targetPiece.remove();
+    }
+
+    // IMPORTANT: Get the piece from the TARGET board (not source board)
+    // The source board should remain unchanged (it represents the previous state)
+    // The target board is a clone and has its own cloned pieces
+    final pieceOnTargetBoard = finalTargetBoard.getPiece(from!.x, from!.y);
+    if (pieceOnTargetBoard == null) {
+      throw StateError('Source piece not found on target board');
+    }
+
     final finalSourcePiece = sourcePiece;
-    if (promote != null && finalSourcePiece != null) {
+    if (promote != null) {
       // Handle promotion: remove the pawn and create the promoted piece
-      // First, remove the pawn from the source board
-      sourcePieceOnSourceBoard.remove();
+      // Remove the pawn from the target board
+      pieceOnTargetBoard.remove();
 
       // Determine the promoted piece type
       String promotedType;
@@ -256,19 +397,108 @@ class Move {
       finalTargetBoard.setPiece(targetPos.x, targetPos.y, promotedPiece);
     } else {
       // Normal move
-      sourcePieceOnSourceBoard.changePosition(
-        finalTargetBoard,
-        targetPos.x,
-        targetPos.y,
-        sourceBoard: sourceBoardOriginal,
-        sourcePiece: finalSourcePiece,
-      );
+
+      // Check for promotion: if pawn reaches the end of the board, promote to queen
+      final isPawnPromotion =
+          finalSourcePiece.type == PieceType.pawn &&
+          ((finalSourcePiece.side == 0 && targetPos.y == 7) ||
+              (finalSourcePiece.side == 1 && targetPos.y == 0));
+
+      if (isPawnPromotion) {
+        // Remove the pawn from the target board
+        pieceOnTargetBoard.remove();
+
+        // Create a queen on the target board
+        final promotedQueen = Piece(
+          game: game,
+          board: finalTargetBoard,
+          side: finalSourcePiece.side,
+          x: targetPos.x,
+          y: targetPos.y,
+          type: PieceType.queen,
+        );
+        promotedQueen.hasMoved = true; // Promoted piece has moved
+        _promotedPiece = promotedQueen;
+
+        // Place the promoted queen on the target board
+        finalTargetBoard.setPiece(targetPos.x, targetPos.y, promotedQueen);
+      } else {
+        // Normal move - move the piece on the target board
+        // The source board remains unchanged (previous state)
+        pieceOnTargetBoard.changePosition(
+          finalTargetBoard,
+          targetPos.x,
+          targetPos.y,
+          sourceBoard: sourceBoardOriginal,
+          sourcePiece: finalSourcePiece,
+        );
+      }
+
+      // Update castling rights when king or rook moves
+      if (finalSourcePiece.type == PieceType.king) {
+        // Remove all castling rights for this side
+        finalTargetBoard.castleAvailable = CastlingRights.removeCastlingRights(
+          finalTargetBoard.castleAvailable,
+          finalSourcePiece.side,
+        );
+      } else if (finalSourcePiece.type == PieceType.rook) {
+        // Remove castling right for this specific rook
+        final fromX = from!.x;
+        final targetRank = from!.y;
+
+        // Check if this is a corner rook
+        if (fromX == 0) {
+          // Queenside rook
+          if (finalSourcePiece.side == 0) {
+            finalTargetBoard.castleAvailable &= ~CastlingRights.blackQueenside;
+          } else {
+            finalTargetBoard.castleAvailable &= ~CastlingRights.whiteQueenside;
+          }
+        } else if (fromX == 7) {
+          // Kingside rook
+          if (finalSourcePiece.side == 0) {
+            finalTargetBoard.castleAvailable &= ~CastlingRights.blackKingside;
+          } else {
+            finalTargetBoard.castleAvailable &= ~CastlingRights.whiteKingside;
+          }
+        }
+      }
+
+      // Also update castling rights if a rook is captured
+      if (targetPiece != null && targetPiece.type == PieceType.rook) {
+        final fromX = targetPos.x;
+        final targetRank = targetPos.y;
+
+        if (fromX == 0) {
+          // Queenside rook captured
+          if (targetPiece.side == 0) {
+            finalTargetBoard.castleAvailable &= ~CastlingRights.blackQueenside;
+          } else {
+            finalTargetBoard.castleAvailable &= ~CastlingRights.whiteQueenside;
+          }
+        } else if (fromX == 7) {
+          // Kingside rook captured
+          if (targetPiece.side == 0) {
+            finalTargetBoard.castleAvailable &= ~CastlingRights.blackKingside;
+          } else {
+            finalTargetBoard.castleAvailable &= ~CastlingRights.whiteKingside;
+          }
+        }
+      }
     }
 
     // Make used boards inactive
+    print(
+      'DEBUG Move.execute: Making ${usedBoards.length} used boards inactive',
+    );
     for (final board in usedBoards) {
+      print(
+        'DEBUG Move.execute: Making board inactive: l=${board.l}, t=${board.t}',
+      );
       board.makeInactive();
     }
+
+    print('DEBUG Move.execute: === MOVE EXECUTE END ===');
   }
 
   /// Private constructor for null moves (internal use only)

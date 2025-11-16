@@ -190,19 +190,7 @@ class MovementPatterns {
       }
     }
 
-    // Castling moves (will be added in Phase 2.3 - needs check detection first)
-    // For now, we'll add basic castling logic
-    if (!piece.hasMoved && board.turn == piece.side) {
-      // Kingside castling
-      if (_canCastleKingside(piece, board)) {
-        moves.add(Vec4(6, piece.y, l, t)); // King moves to g-file
-      }
-
-      // Queenside castling
-      if (_canCastleQueenside(piece, board)) {
-        moves.add(Vec4(2, piece.y, l, t)); // King moves to c-file
-      }
-    }
+    // Castling removed - king can only move one square
 
     return moves;
   }
@@ -320,23 +308,6 @@ class MovementPatterns {
         if (targetPiece != null && targetPiece.side != piece.side) {
           // Enemy piece - can capture
           moves.add(targetPos);
-        }
-      }
-    }
-
-    // En-passant capture
-    if (board.enPassantPawn != null) {
-      final enPassantPawn = board.enPassantPawn!;
-      final enPassantX = enPassantPawn.x;
-      final enPassantY = enPassantPawn.y;
-
-      // Check if en-passant pawn is on adjacent file and same rank
-      if ((enPassantX == piece.x - 1 || enPassantX == piece.x + 1) &&
-          enPassantY == piece.y) {
-        // Can capture en-passant
-        final captureY = piece.y + direction;
-        if (captureY >= 0 && captureY < 8) {
-          moves.add(Vec4(enPassantX, captureY, l, t));
         }
       }
     }

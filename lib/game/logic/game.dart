@@ -240,7 +240,8 @@ class Game {
     Board? initialBoard,
     bool fastForward,
   ) {
-    return Board(
+    print('DEBUG Board Creation: Creating board at l=$l, t=$t, turn=$turn');
+    final board = Board(
       game: this,
       l: l,
       t: t,
@@ -248,6 +249,8 @@ class Game {
       initialBoard: initialBoard,
       fastForward: fastForward,
     );
+    print('DEBUG Board Creation: Board created successfully at l=$l, t=$t');
+    return board;
   }
 
   /// Factory method to create a player
@@ -306,47 +309,53 @@ class Game {
     bool hasChecks = false;
     displayedChecks = [];
 
-    // Check all timelines for boards with matching turn
+    // Check all timelines for boards where the current player's king might be
+    // In 5D chess, we need to find the king on any board, not just boards with matching turn
     for (final timelineDirection in timelines) {
       for (final timeline in timelineDirection) {
         if (!timeline.isActive) continue;
 
-        final currentBoard = timeline.getCurrentBoard();
-        if (currentBoard == null) continue;
-
-        // Check if this board's turn matches current turn
-        if (currentBoard.turn == turn) {
-          // Check if king is in check (cross-timeline: checks pieces from ALL timelines)
-          final inCheck = CheckDetector.isKingInCheckCrossTimeline(
-            this,
-            currentBoard,
-            turn,
-          );
-
-          if (inCheck) {
-            hasChecks = true;
-            currentBoard.imminentCheck = true;
-
-            // Find king position for display
-            // The cross-timeline check detection already found the check,
-            // so we just need to store the king position for UI display
-            for (int x = 0; x < 8; x++) {
-              for (int y = 0; y < 8; y++) {
-                final piece = currentBoard.getPiece(x, y);
-                if (piece != null &&
-                    piece.type == PieceType.king &&
-                    piece.side == turn) {
-                  // Store king position for display
-                  // Attacking pieces will be found during rendering if needed
-                  displayedChecks.add([
-                    Vec4(x, y, currentBoard.l, currentBoard.t),
-                  ]);
-                  break; // Only one king per side
-                }
+        // Check all boards in this timeline, not just the current board
+        // We need to find the king wherever it is
+        final activeBoards = timeline.getActiveBoards();
+        for (final board in activeBoards) {
+          // Find the king of the current player's side on this board
+          Piece? king;
+          int? kingX, kingY;
+          for (int x = 0; x < 8; x++) {
+            for (int y = 0; y < 8; y++) {
+              final piece = board.getPiece(x, y);
+              if (piece != null &&
+                  piece.type == PieceType.king &&
+                  piece.side == turn) {
+                king = piece;
+                kingX = x;
+                kingY = y;
+                break;
               }
             }
-          } else {
-            currentBoard.imminentCheck = false;
+            if (king != null) break;
+          }
+
+          // If we found a king on this board, check if it's in check
+          if (king != null) {
+            // Check if king is in check (cross-timeline: checks pieces from ALL timelines)
+            final inCheck = CheckDetector.isKingInCheckCrossTimeline(
+              this,
+              board,
+              turn,
+            );
+
+            if (inCheck) {
+              hasChecks = true;
+              board.imminentCheck = true;
+
+              // Store king position for display
+              final kingPos = Vec4(kingX!, kingY!, board.l, board.t);
+              displayedChecks.add([kingPos]);
+            } else {
+              board.imminentCheck = false;
+            }
           }
         }
       }

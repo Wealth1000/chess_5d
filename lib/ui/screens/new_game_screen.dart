@@ -312,11 +312,13 @@ class _NewGameScreenState extends State<NewGameScreen> {
                         ),
                       ),
                       SizedBox(height: spacing * 2),
-                      // Play Button
+                      // Play Button (disabled for Public, CPU, Custom, Private)
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed: () => _startGame(context),
+                          onPressed: _selectedMode == 'Local'
+                              ? () => _startGame(context)
+                              : null,
                           style: ElevatedButton.styleFrom(
                             padding: EdgeInsets.symmetric(
                               vertical: spacing * 1.2,

@@ -8,7 +8,6 @@ import 'package:chess_5d/game/logic/board.dart';
 /// - Positive l = white player's timelines
 /// - l = 0 is the main timeline
 class Timeline {
-
   Timeline({
     required this.game,
     required this.l,
@@ -21,6 +20,7 @@ class Timeline {
     // Initialize with empty board list
     // Boards will be added via setBoard()
   }
+
   /// The game this timeline belongs to
   dynamic game; // Game class (forward reference)
 
@@ -61,6 +61,10 @@ class Timeline {
   ///
   /// Expands the boards list if necessary
   void setBoard(int t, Board board) {
+    print(
+      'DEBUG Timeline.setBoard: Setting board at timeline l=$l, turn t=$t (current end=$end)',
+    );
+
     // Ensure boards list is large enough
     final requiredLength = t - start + 1;
     while (boards.length < requiredLength) {
@@ -74,7 +78,15 @@ class Timeline {
 
       // Update end if this is a new latest board
       if (t > end) {
+        final oldEnd = end;
         end = t;
+        print(
+          'DEBUG Timeline.setBoard: Updated timeline end from $oldEnd to $end (new board added!)',
+        );
+      } else {
+        print(
+          'DEBUG Timeline.setBoard: Board set at turn $t (end remains $end)',
+        );
       }
     }
   }

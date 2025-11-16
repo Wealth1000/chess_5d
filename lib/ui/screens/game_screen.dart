@@ -5,6 +5,7 @@ import 'package:chess_5d/game/logic/board.dart';
 import 'package:chess_5d/game/logic/board_setup.dart';
 import 'package:chess_5d/game/logic/position.dart';
 import 'package:chess_5d/game/rendering/board_widget.dart';
+import 'package:chess_5d/game/rendering/highlight.dart';
 
 /// Mobile-friendly game screen matching the parallel view layout.
 class GameScreen extends StatelessWidget {
@@ -12,6 +13,80 @@ class GameScreen extends StatelessWidget {
 
   final GameProvider gameProvider;
   final ThemeProvider? themeProvider;
+
+  /// Show the pause menu dialog
+  void _showPauseMenu(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16.0),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(24.0),
+            constraints: const BoxConstraints(maxWidth: 300),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Title
+                Text(
+                  'Game Menu',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24.0),
+                // Resume button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(dialogContext).pop();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16.0),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8.0),
+                      ),
+                    ),
+                    child: const Text('Resume'),
+                  ),
+                ),
+                const SizedBox(height: 12.0),
+                // Forfeit game button - resets board and goes back to previous page
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      // Close the dialog
+                      Navigator.of(dialogContext).pop();
+                      // Reset the game to the beginning
+                      final options = gameProvider.game.options;
+                      final localPlayer = gameProvider.game.localPlayer;
+                      gameProvider.newGame(options, localPlayer);
+                      // Navigate back to the previous page
+                      Navigator.of(context).pop();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16.0),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8.0),
+                      ),
+                      backgroundColor: Theme.of(context).colorScheme.error,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Forfeit Game'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +99,7 @@ class GameScreen extends StatelessWidget {
         leading: IconButton(
           icon: const Icon(Icons.menu, size: 18),
           onPressed: () {
-            Navigator.of(context).pop();
+            _showPauseMenu(context);
           },
           style: IconButton.styleFrom(
             backgroundColor: Colors.black.withValues(alpha: 0.35),
@@ -55,7 +130,13 @@ class GameScreen extends StatelessWidget {
       body: SafeArea(
         child: Stack(
           children: [
-            // Scrollable content area with checkered background and boards
+            // Checkered background
+            Positioned.fill(
+              child: CustomPaint(
+                painter: const _CheckeredBackgroundPainter(squareSize: 40.0),
+              ),
+            ),
+            // Scrollable content area with boards
             _BlankBoardsView(gameProvider: gameProvider),
 
             // Fixed view mode buttons at the top
@@ -214,47 +295,206 @@ class _BlankBoardsView extends StatefulWidget {
 }
 
 class _BlankBoardsViewState extends State<_BlankBoardsView> {
-  final TransformationController _transformationController =
-      TransformationController();
+  final ScrollController _horizontalScrollController = ScrollController();
+  final ScrollController _verticalScrollController = ScrollController();
+  int _previousTurnCount = 0;
 
   @override
   void initState() {
     super.initState();
     // Listen to game provider changes
     widget.gameProvider.addListener(_onGameStateChanged);
+    // Track initial turn count (use end, not end + 1)
+    final timeline = widget.gameProvider.game.getTimeline(0);
+    _previousTurnCount = timeline.end;
   }
 
   @override
   void dispose() {
     widget.gameProvider.removeListener(_onGameStateChanged);
-    _transformationController.dispose();
+    _horizontalScrollController.dispose();
+    _verticalScrollController.dispose();
     super.dispose();
   }
 
   void _onGameStateChanged() {
+    // Always rebuild when game state changes
     setState(() {
-      // Rebuild when game state changes
+      final timeline = widget.gameProvider.game.getTimeline(0);
+      final currentTurnCount = timeline.end;
+
+      // Check if a new board was added
+      if (currentTurnCount > _previousTurnCount) {
+        // A new board was added - scroll to it after the frame is built
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scrollToNewBoard();
+        });
+        _previousTurnCount = currentTurnCount;
+      }
     });
+  }
+
+  void _scrollToNewBoard() {
+    if (_horizontalScrollController.hasClients &&
+        _horizontalScrollController.position.maxScrollExtent > 0) {
+      // Scroll to the rightmost board
+      final maxScroll = _horizontalScrollController.position.maxScrollExtent;
+      _horizontalScrollController.animateTo(
+        maxScroll,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Get the actual board from the game (main timeline, turn 0)
+    // Get all boards from the timeline (main timeline, all turns)
     final timeline = widget.gameProvider.game.getTimeline(0);
-    final board = timeline.getBoard(0);
+    final boards = <Board>[];
 
-    if (board == null) {
-      // Fallback: create initial board if not found
-      final fallbackBoard = BoardSetup.createInitialBoard(
+    print('DEBUG GameScreen.build: === START BUILD ===');
+    print(
+      'DEBUG GameScreen.build: Timeline l=0, start=${timeline.start}, end=${timeline.end}',
+    );
+
+    // Get all active boards from the timeline
+    final activeBoards = timeline.getActiveBoards();
+    print('DEBUG GameScreen.build: Found ${activeBoards.length} active boards');
+    for (final board in activeBoards) {
+      print(
+        'DEBUG GameScreen.build: Active board at l=${board.l}, t=${board.t}, active=${board.active}, deleted=${board.deleted}',
+      );
+      if (board.l == 0 && !board.deleted) {
+        print('DEBUG GameScreen.build: Adding active board at t=${board.t}');
+        boards.add(board);
+      }
+    }
+
+    // Also check boards by turn number directly (in case some aren't in activeBoards)
+    final maxTurn = timeline.end;
+    print(
+      'DEBUG GameScreen.build: Checking boards from t=-1 to t=${maxTurn + 1}',
+    );
+    for (int t = -1; t <= maxTurn + 1; t++) {
+      final board = timeline.getBoard(t);
+      if (board != null) {
+        print(
+          'DEBUG GameScreen.build: Found board at t=$t: l=${board.l}, active=${board.active}, deleted=${board.deleted}',
+        );
+        if (!board.deleted && !boards.contains(board)) {
+          print(
+            'DEBUG GameScreen.build: Adding board at t=$t (not in activeBoards or already collected)',
+          );
+          boards.add(board);
+        }
+      }
+    }
+
+    // Also check if there are any unsubmitted moves that create boards at the next turn
+    final currentTurnMoves = widget.gameProvider.game.currentTurnMoves;
+    print(
+      'DEBUG GameScreen.build: Checking ${currentTurnMoves.length} unsubmitted moves',
+    );
+    for (final move in currentTurnMoves) {
+      if (!move.nullMove && move.to != null) {
+        final targetPos = move.to!;
+        print(
+          'DEBUG GameScreen.build: Move targets l=${targetPos.l}, t=${targetPos.t}, maxTurn=$maxTurn',
+        );
+        if (targetPos.l == 0) {
+          // Check if board exists at target position (even if t > maxTurn)
+          final futureBoard = timeline.getBoard(targetPos.t);
+          if (futureBoard != null) {
+            print(
+              'DEBUG GameScreen.build: Found board from move at t=${targetPos.t}, deleted=${futureBoard.deleted}',
+            );
+            if (!futureBoard.deleted && !boards.contains(futureBoard)) {
+              print(
+                'DEBUG GameScreen.build: Adding future board at t=${targetPos.t}',
+              );
+              boards.add(futureBoard);
+            }
+          } else {
+            print(
+              'DEBUG GameScreen.build: Board at t=${targetPos.t} does not exist yet',
+            );
+          }
+        }
+      }
+    }
+
+    print('DEBUG GameScreen.build: Total boards collected: ${boards.length}');
+
+    // If no boards found, create initial board
+    if (boards.isEmpty) {
+      print('DEBUG GameScreen.build: No boards found, creating initial board');
+      final initialBoard = BoardSetup.createInitialBoard(
         widget.gameProvider.game,
         0,
         0,
         1,
       );
-      return _buildBoardView(fallbackBoard);
+      return _buildBoardsRow([initialBoard]);
     }
 
-    return _buildBoardView(board);
+    // Sort boards by turn number to ensure correct order
+    boards.sort((a, b) => a.t.compareTo(b.t));
+    print(
+      'DEBUG GameScreen.build: Final board count before build: ${boards.length}',
+    );
+    print('DEBUG GameScreen.build: === END BUILD ===');
+
+    return _buildBoardsRow(boards);
+  }
+
+  Widget _buildBoardsRow(List<Board> boards) {
+    print('DEBUG GameScreen: Building ${boards.length} boards');
+    for (final board in boards) {
+      print(
+        'DEBUG GameScreen: Board at l=${board.l}, t=${board.t}, turn=${board.turn}',
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Calculate available height (screen height minus safe area and button areas)
+        final availableHeight = constraints.maxHeight;
+        final availableWidth = constraints.maxWidth;
+
+        // Use nested scroll views for both horizontal and vertical scrolling
+        return SizedBox(
+          width: availableWidth,
+          height: availableHeight,
+          child: SingleChildScrollView(
+            controller: _verticalScrollController,
+            scrollDirection: Axis.vertical,
+            child: SizedBox(
+              height: availableHeight, // Minimum height for vertical scrolling
+              child: SingleChildScrollView(
+                controller: _horizontalScrollController,
+                scrollDirection: Axis.horizontal,
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16.0),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: boards.map((board) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          child: _buildBoardView(board),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Widget _buildBoardView(Board board) {
@@ -275,74 +515,52 @@ class _BlankBoardsViewState extends State<_BlankBoardsView> {
       return move.l == board.l && (move.t == board.t || move.t == board.t + 1);
     }).toList();
 
+    // Get check highlights from game state
+    final checkHighlights = <Highlight>[];
+    final game = widget.gameProvider.game;
+
+    for (final checkList in game.displayedChecks) {
+      if (checkList.isNotEmpty) {
+        final kingPos = checkList[0];
+        // Only show check highlight if it's on this board
+        if (kingPos.l == board.l && kingPos.t == board.t) {
+          checkHighlights.add(
+            Highlight(position: kingPos, type: HighlightType.check),
+          );
+        }
+      }
+    }
+
     // Determine outline color based on current turn
     // White's turn (1) = white outline, Black's turn (0) = black outline
     final outlineColor = currentTurn == 1 ? Colors.white : Colors.black;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Calculate content size for centered board
-        final contentWidth = constraints.maxWidth > 0
-            ? constraints.maxWidth
-            : MediaQuery.of(context).size.width;
-        final contentHeight = constraints.maxHeight > 0
-            ? constraints.maxHeight
-            : MediaQuery.of(context).size.height;
-
-        return InteractiveViewer(
-          transformationController: _transformationController,
-          minScale: 0.5,
-          maxScale: 4.0,
-          panEnabled: true,
-          scaleEnabled: true,
-          boundaryMargin: const EdgeInsets.all(double.infinity),
-          child: SizedBox(
-            width: contentWidth,
-            height: contentHeight,
-            child: Stack(
-              children: [
-                // Infinite checkered background that fills the zoomable area
-                Positioned.fill(
-                  child: CustomPaint(
-                    painter: const _CheckeredBackgroundPainter(
-                      squareSize: 40.0,
-                    ),
-                  ),
-                ),
-                // Single board with pieces, centered
-                Center(
-                  child: Container(
-                    padding: const EdgeInsets.all(8.0),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(8.0),
-                      border: Border.all(color: outlineColor, width: 3.0),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.2),
-                          blurRadius: 4.0,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: SizedBox(
-                      width: 300,
-                      height: 300,
-                      child: BoardWidget(
-                        board: board,
-                        selectedSquare: selectedSquare,
-                        legalMoves: boardLegalMoves,
-                        onSquareTapped: _handleSquareTap,
-                        coordinatesVisible: true,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+    return Container(
+      padding: const EdgeInsets.all(8.0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8.0),
+        border: Border.all(color: outlineColor, width: 3.0),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.2),
+            blurRadius: 4.0,
+            offset: const Offset(0, 2),
           ),
-        );
-      },
+        ],
+      ),
+      child: SizedBox(
+        width: 300,
+        height: 300,
+        child: BoardWidget(
+          board: board,
+          selectedSquare: selectedSquare,
+          legalMoves: boardLegalMoves,
+          highlights: checkHighlights,
+          onSquareTapped: _handleSquareTap,
+          coordinatesVisible: true,
+        ),
+      ),
     );
   }
 

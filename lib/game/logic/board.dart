@@ -5,7 +5,6 @@ import 'package:chess_5d/game/logic/position.dart';
 ///
 /// Each board is part of a timeline and contains pieces at specific positions.
 class Board {
-
   /// Create a new board
   ///
   /// [game] - The game this board belongs to
@@ -25,7 +24,6 @@ class Board {
        active = true,
        deleted = false,
        castleAvailable = 0,
-       enPassantPawn = null,
        imminentCheck = false {
     // If cloning from another board, copy pieces
     if (initialBoard != null) {
@@ -38,7 +36,6 @@ class Board {
         }
       }
       castleAvailable = initialBoard.castleAvailable;
-      enPassantPawn = initialBoard.enPassantPawn;
     }
   }
 
@@ -57,6 +54,7 @@ class Board {
       fastForward: true,
     );
   }
+
   /// The game this board belongs to
   dynamic game; // Game class (forward reference)
 
@@ -86,9 +84,6 @@ class Board {
   /// Bit 0: Black kingside, Bit 1: Black queenside
   /// Bit 2: White kingside, Bit 3: White queenside
   int castleAvailable;
-
-  /// En passant target pawn (if any)
-  Piece? enPassantPawn;
 
   /// Whether this board has imminent checks
   bool imminentCheck;
