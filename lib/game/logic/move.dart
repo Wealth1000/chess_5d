@@ -424,7 +424,16 @@ class Move {
         finalTargetBoard.setPiece(targetPos.x, targetPos.y, promotedQueen);
       } else {
         // Check if this is an en passant capture
-        final epTarget = sourceBoardOriginal.enPassantTargetSquare;
+        // The en passant target square is set on the board where the enemy pawn moved to
+        // So we need to check both source and target boards
+        Vec4? epTarget = sourceBoardOriginal.enPassantTargetSquare;
+        if (epTarget == null &&
+            finalTargetBoard.enPassantTargetSquare != null) {
+          epTarget = finalTargetBoard.enPassantTargetSquare;
+          print(
+            'DEBUG EnPassant.execute: En passant target square found on target board, not source board',
+          );
+        }
         final isEnPassantCapture =
             finalSourcePiece.type == PieceType.pawn &&
             from != null &&
@@ -432,53 +441,104 @@ class Move {
 
         if (isEnPassantCapture) {
           // Check if the pawn is capturing to the en passant target square
-          // En passant capture: pawn moves diagonally to the square behind the enemy pawn
+          // En passant capture: pawn moves diagonally to the en passant target square
+          // (the square that the enemy pawn passed over)
+          // The enemy pawn is one square forward from the en passant target in the enemy's direction
           final direction = finalSourcePiece.side == 0 ? 1 : -1;
-          final captureY =
-              epTarget.y + direction; // Square behind the en passant target
+          final enemyDirection =
+              -direction; // Enemy moves in opposite direction
+          final enemyPawnY = epTarget.y + enemyDirection; // Enemy pawn is here
 
+          // Check if target position matches the en passant target square
+          // Note: We only check x, y, and l - not t, because the move goes to the next turn
+          // but the en passant target square is set on the current turn's board
           if (targetPos.x == epTarget.x &&
-              targetPos.y == captureY &&
-              targetPos.l == epTarget.l &&
-              targetPos.t == epTarget.t) {
-            // print(
-            //   'DEBUG EnPassant.execute: EN PASSANT CAPTURE DETECTED! Pawn from (${from!.x}, ${from!.y}) to (${targetPos.x}, ${targetPos.y})',
-            // );
-            // print(
-            //   'DEBUG EnPassant.execute: En passant target square: (${epTarget.x}, ${epTarget.y}) at l=${epTarget.l}, t=${epTarget.t}',
-            // );
-
-            // Capture the enemy pawn on the en passant target square
-            // The enemy pawn should be on the source board at the en passant target square
-            final enemyPawn = sourceBoardOriginal.getPiece(
-              epTarget.x,
-              epTarget.y,
+              targetPos.y == epTarget.y &&
+              targetPos.l == epTarget.l) {
+            print(
+              'DEBUG EnPassant.execute: EN PASSANT CAPTURE DETECTED! Pawn from (${from!.x}, ${from!.y}) to (${targetPos.x}, ${targetPos.y})',
             );
-            if (enemyPawn != null &&
-                enemyPawn.type == PieceType.pawn &&
-                enemyPawn.side != finalSourcePiece.side) {
-              // print(
-              //   'DEBUG EnPassant.execute: Found enemy pawn at (${epTarget.x}, ${epTarget.y}) - removing it',
-              // );
+            print(
+              'DEBUG EnPassant.execute: En passant target square: (${epTarget.x}, ${epTarget.y}) at l=${epTarget.l}, t=${epTarget.t}',
+            );
+            print(
+              'DEBUG EnPassant.execute: Enemy pawn should be at (${epTarget.x}, $enemyPawnY)',
+            );
 
-              // Remove the enemy pawn from the target board
-              final enemyPawnOnTarget = finalTargetBoard.getPiece(
-                epTarget.x,
-                epTarget.y,
+            // The enemy pawn is on the source board (where the capturing pawn is)
+            // The en passant target square tells us the square the enemy pawn passed over,
+            // and the enemy pawn is one square forward from that in the enemy's direction
+            print(
+              'DEBUG EnPassant.execute: Looking for enemy pawn on source board at l=${sourceBoardOriginal.l}, t=${sourceBoardOriginal.t}',
+            );
+            print(
+              'DEBUG EnPassant.execute: Enemy pawn should be at (${epTarget.x}, $enemyPawnY)',
+            );
+
+            // Find the enemy pawn on the target board (it was cloned from source board)
+            // IMPORTANT: Do NOT remove from sourceBoardOriginal - that's the past board and should remain unchanged
+            // Only remove from finalTargetBoard (the new board being created)
+            final enemyPawnOnTarget = finalTargetBoard.getPiece(
+              epTarget.x,
+              enemyPawnY,
+            );
+
+            if (enemyPawnOnTarget != null &&
+                enemyPawnOnTarget.type == PieceType.pawn &&
+                enemyPawnOnTarget.side != finalSourcePiece.side) {
+              print(
+                'DEBUG EnPassant.execute: Found enemy pawn at (${epTarget.x}, $enemyPawnY) on target board - removing it',
               );
-              if (enemyPawnOnTarget != null) {
-                enemyPawnOnTarget.remove();
-                finalTargetBoard.setPiece(epTarget.x, epTarget.y, null);
-                // print(
-                //   'DEBUG EnPassant.execute: Enemy pawn removed from target board',
-                // );
+
+              // Remove the enemy pawn from the target board only (not from source/past board)
+              enemyPawnOnTarget.remove();
+              finalTargetBoard.setPiece(epTarget.x, enemyPawnY, null);
+              print(
+                'DEBUG EnPassant.execute: Enemy pawn removed from target board at (${epTarget.x}, $enemyPawnY)',
+              );
+              print(
+                'DEBUG EnPassant.execute: Source board (past) remains unchanged - enemy pawn still visible on past board',
+              );
+            } else {
+              print(
+                'DEBUG EnPassant.execute: ERROR - Enemy pawn not found at (${epTarget.x}, $enemyPawnY) on target board l=${finalTargetBoard.l}, t=${finalTargetBoard.t}',
+              );
+              print(
+                'DEBUG EnPassant.execute: Piece at that location on target board: ${finalTargetBoard.getPiece(epTarget.x, enemyPawnY)?.type}, side: ${finalTargetBoard.getPiece(epTarget.x, enemyPawnY)?.side}',
+              );
+              print(
+                'DEBUG EnPassant.execute: Piece at that location on source board: ${sourceBoardOriginal.getPiece(epTarget.x, enemyPawnY)?.type}, side: ${sourceBoardOriginal.getPiece(epTarget.x, enemyPawnY)?.side}',
+              );
+
+              // Try searching all pieces on the target board to find the enemy pawn
+              print(
+                'DEBUG EnPassant.execute: Searching all pieces on target board for enemy pawn...',
+              );
+              bool foundEnemyPawn = false;
+              for (int x = 0; x < 8; x++) {
+                for (int y = 0; y < 8; y++) {
+                  final piece = finalTargetBoard.getPiece(x, y);
+                  if (piece != null &&
+                      piece.type == PieceType.pawn &&
+                      piece.side != finalSourcePiece.side &&
+                      piece.x == epTarget.x) {
+                    print(
+                      'DEBUG EnPassant.execute: Found enemy pawn at (${piece.x}, ${piece.y}) on target board - expected at (${epTarget.x}, $enemyPawnY)',
+                    );
+                    foundEnemyPawn = true;
+                  }
+                }
+              }
+              if (!foundEnemyPawn) {
+                print(
+                  'DEBUG EnPassant.execute: No enemy pawn found anywhere on target board',
+                );
               }
             }
-            // else {
-            //   print(
-            //     'DEBUG EnPassant.execute: ERROR - Enemy pawn not found at (${epTarget.x}, ${epTarget.y})',
-            //   );
-            // }
+          } else {
+            print(
+              'DEBUG EnPassant.execute: En passant check failed - target (${targetPos.x}, ${targetPos.y}, l=${targetPos.l}, t=${targetPos.t}) != epTarget (${epTarget.x}, ${epTarget.y}, l=${epTarget.l}, t=${epTarget.t})',
+            );
           }
         }
 
@@ -632,9 +692,9 @@ class Move {
       if (finalSourcePiece.type != PieceType.pawn) {
         // Not a pawn - clear en passant target square
         finalTargetBoard.enPassantTargetSquare = null;
-        // print(
-        //   'DEBUG EnPassant.execute: Non-pawn move - cleared enPassantTargetSquare',
-        // );
+        print(
+          'DEBUG EnPassant.execute: Non-pawn move - cleared enPassantTargetSquare',
+        );
       } else {
         // Pawn move - check if it moved 2 squares forward
         if (from != null) {
@@ -657,22 +717,22 @@ class Move {
             );
 
             finalTargetBoard.enPassantTargetSquare = epTarget;
-            // print(
-            //   'DEBUG EnPassant.execute: Pawn moved 2 squares forward - set enPassantTargetSquare to (${epTarget.x}, ${epTarget.y}) at l=${epTarget.l}, t=${epTarget.t}',
-            // );
+            print(
+              'DEBUG EnPassant.execute: Pawn moved 2 squares forward - set enPassantTargetSquare to (${epTarget.x}, ${epTarget.y}) at l=${epTarget.l}, t=${epTarget.t}',
+            );
           } else {
             // Pawn did not move 2 squares - clear en passant target square
             finalTargetBoard.enPassantTargetSquare = null;
-            // print(
-            //   'DEBUG EnPassant.execute: Pawn move (not 2 squares) - cleared enPassantTargetSquare (dy=$dy, dx=$dx)',
-            // );
+            print(
+              'DEBUG EnPassant.execute: Pawn move (not 2 squares) - cleared enPassantTargetSquare (dy=$dy, dx=$dx)',
+            );
           }
         } else {
           // No from position - clear en passant target square
           finalTargetBoard.enPassantTargetSquare = null;
-          // print(
-          //   'DEBUG EnPassant.execute: Pawn move (no from position) - cleared enPassantTargetSquare',
-          // );
+          print(
+            'DEBUG EnPassant.execute: Pawn move (no from position) - cleared enPassantTargetSquare',
+          );
         }
       }
     }

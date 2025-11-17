@@ -543,35 +543,60 @@ class MovementPatterns {
 
     // En passant capture
     if (board.enPassantTargetSquare != null) {
-      // print(
-      //   'DEBUG EnPassant: Checking en passant - target square: (${board.enPassantTargetSquare!.x}, ${board.enPassantTargetSquare!.y}) at l=${board.enPassantTargetSquare!.l}, t=${board.enPassantTargetSquare!.t}',
-      // );
-      // print(
-      //   'DEBUG EnPassant: Pawn at (${piece.x}, ${piece.y}), direction=$direction, piece side=${piece.side}',
-      // );
+      print(
+        'DEBUG EnPassant: Checking en passant - target square: (${board.enPassantTargetSquare!.x}, ${board.enPassantTargetSquare!.y}) at l=${board.enPassantTargetSquare!.l}, t=${board.enPassantTargetSquare!.t}',
+      );
+      print(
+        'DEBUG EnPassant: Pawn at (${piece.x}, ${piece.y}), direction=$direction, piece side=${piece.side}',
+      );
 
-      // En passant is only available if:
-      // 1. The en passant target square is adjacent horizontally (same rank)
-      // 2. The pawn can capture diagonally to the square behind the target
+      // En passant rules:
+      // 1. Enemy pawn advanced two squares on the previous turn
+      // 2. The capturing pawn attacks the square that the enemy pawn passed over (epTarget)
+      // 3. The capturing pawn must be on the same rank as the enemy pawn (after its move)
+      // 4. The capture goes to the en passant target square (the square the enemy pawn passed over)
+      //
+      // If enemy pawn moved from (x, y1) to (x, y2) where y2 = y1 + 2*direction,
+      // then epTarget is at (x, y1 + direction) - the square it passed over
+      // The enemy pawn is now at (x, y2) = (x, epTarget.y + direction)
+      // The capturing pawn must be at (epTarget.x ± 1, epTarget.y + direction) - same rank as enemy pawn
+      // The capture move goes to epTarget
       final epTarget = board.enPassantTargetSquare!;
+
+      // Check if en passant target is on the same board and timeline
+      print(
+        'DEBUG EnPassant: Checking board match - epTarget l=${epTarget.l}, t=${epTarget.t}, board l=${board.l}, t=${board.t}',
+      );
+
       if (epTarget.l == board.l && epTarget.t == board.t) {
-        // Same board - check if pawn is on the same rank and adjacent file
+        // The enemy pawn's direction is opposite to the capturing pawn's direction
+        // If capturing pawn moves in direction +1 (white), enemy moved in direction -1 (black)
+        // If capturing pawn moves in direction -1 (black), enemy moved in direction +1 (white)
+        final enemyDirection = -direction; // Opposite direction
+
+        // The enemy pawn is now at (epTarget.x, epTarget.y + enemyDirection)
+        // The capturing pawn must be on the same rank as the enemy pawn
+        final enemyPawnY = epTarget.y + enemyDirection;
         final dx = epTarget.x - piece.x;
-        final isAdjacent = dx.abs() == 1 && epTarget.y == piece.y;
+        final isOnEnemyRank = piece.y == enemyPawnY;
+        final isAdjacentFile = dx.abs() == 1;
+        final canCapture = isOnEnemyRank && isAdjacentFile;
 
-        if (isAdjacent) {
-          // The pawn is adjacent to the en passant target square
-          // The capture square is one square forward (in the direction of movement)
-          final captureY = piece.y + direction;
-          final capturePos = Vec4(epTarget.x, captureY, l, t);
+        print(
+          'DEBUG EnPassant: Checking en passant - enemy pawn at (${epTarget.x}, $enemyPawnY), capturing pawn at (${piece.x}, ${piece.y}), dx=$dx, isOnEnemyRank=$isOnEnemyRank, isAdjacentFile=$isAdjacentFile, canCapture=$canCapture',
+        );
 
-          // print(
-          //   'DEBUG EnPassant: Pawn is adjacent to en passant target - capture square: (${capturePos.x}, ${capturePos.y}) at l=${capturePos.l}, t=${capturePos.t}',
-          // );
+        if (canCapture) {
+          // The capture move goes to the en passant target square (the square the enemy pawn passed over)
+          final capturePos = Vec4(epTarget.x, epTarget.y, l, t);
+
+          print(
+            'DEBUG EnPassant: Pawn can capture en passant - capture square: (${capturePos.x}, ${capturePos.y}) at l=${capturePos.l}, t=${capturePos.t}',
+          );
 
           if (capturePos.isValid() &&
-              captureY >= 0 &&
-              captureY < 8 &&
+              capturePos.y >= 0 &&
+              capturePos.y < 8 &&
               capturePos.x >= 0 &&
               capturePos.x < 8) {
             // Check if the capture square is empty (it should be for en passant)
@@ -580,38 +605,36 @@ class MovementPatterns {
               capturePos.y,
             );
             if (captureSquarePiece == null) {
-              // print(
-              //   'DEBUG EnPassant: Adding en passant capture move to (${capturePos.x}, ${capturePos.y}) at l=${capturePos.l}, t=${capturePos.t}',
-              // );
+              print(
+                'DEBUG EnPassant: Adding en passant capture move to (${capturePos.x}, ${capturePos.y}) at l=${capturePos.l}, t=${capturePos.t}',
+              );
               moves.add(capturePos);
+            } else {
+              print(
+                'DEBUG EnPassant: Capture square (${capturePos.x}, ${capturePos.y}) is not empty - cannot en passant',
+              );
             }
-            // else {
-            //   print(
-            //     'DEBUG EnPassant: Capture square (${capturePos.x}, ${capturePos.y}) is not empty - cannot en passant',
-            //   );
-            // }
+          } else {
+            print(
+              'DEBUG EnPassant: Capture square (${capturePos.x}, ${capturePos.y}) is invalid or out of bounds',
+            );
           }
-          // else {
-          //   print(
-          //     'DEBUG EnPassant: Capture square (${capturePos.x}, ${capturePos.y}) is invalid or out of bounds',
-          //   );
-          // }
+        } else {
+          print(
+            'DEBUG EnPassant: Pawn cannot capture en passant - pawn at (${piece.x}, ${piece.y}), enemy pawn rank=$enemyPawnY, epTarget at (${epTarget.x}, ${epTarget.y}), dx=$dx',
+          );
+          print(
+            'DEBUG EnPassant: Need: piece.y==enemyPawnY (${piece.y}==$enemyPawnY) AND dx.abs()==1 (got ${dx.abs()})',
+          );
         }
-        // else {
-        //   print(
-        //     'DEBUG EnPassant: Pawn not adjacent to en passant target (dx=$dx, pawn y=${piece.y}, epTarget y=${epTarget.y})',
-        //   );
-        // }
+      } else {
+        print(
+          'DEBUG EnPassant: En passant target is on different board (target l=${epTarget.l}, t=${epTarget.t}, board l=${board.l}, t=${board.t})',
+        );
       }
-      // else {
-      //   print(
-      //     'DEBUG EnPassant: En passant target is on different board (target l=${epTarget.l}, t=${epTarget.t}, board l=${board.l}, t=${board.t})',
-      //   );
-      // }
+    } else {
+      print('DEBUG EnPassant: No en passant target square available');
     }
-    // else {
-    //   print('DEBUG EnPassant: No en passant target square available');
-    // }
 
     // Note: Promotion will be handled when the move is executed
     // For now, we just generate the move positions

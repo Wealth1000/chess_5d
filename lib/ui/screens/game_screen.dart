@@ -481,19 +481,19 @@ class _BlankBoardsViewState extends State<_BlankBoardsView> {
 
     // Also check boards by turn number directly (in case some aren't in activeBoards)
     final maxTurn = timeline.end;
-    print(
-      'DEBUG GameScreen.build: Checking boards from t=-1 to t=${maxTurn + 1}',
-    );
+    // print(
+    //   'DEBUG GameScreen.build: Checking boards from t=-1 to t=${maxTurn + 1}',
+    // );
     for (int t = -1; t <= maxTurn + 1; t++) {
       final board = timeline.getBoard(t);
       if (board != null) {
-        print(
-          'DEBUG GameScreen.build: Found board at t=$t: l=${board.l}, active=${board.active}, deleted=${board.deleted}',
-        );
+        // print(
+        //   'DEBUG GameScreen.build: Found board at t=$t: l=${board.l}, active=${board.active}, deleted=${board.deleted}',
+        // );
         if (!board.deleted && !boards.contains(board)) {
-          print(
-            'DEBUG GameScreen.build: Adding board at t=$t (not in activeBoards or already collected)',
-          );
+          // print(
+          //   'DEBUG GameScreen.build: Adding board at t=$t (not in activeBoards or already collected)',
+          // );
           boards.add(board);
         }
       }
@@ -501,32 +501,32 @@ class _BlankBoardsViewState extends State<_BlankBoardsView> {
 
     // Also check if there are any unsubmitted moves that create boards at the next turn
     final currentTurnMoves = widget.gameProvider.game.currentTurnMoves;
-    print(
-      'DEBUG GameScreen.build: Checking ${currentTurnMoves.length} unsubmitted moves',
-    );
+    // print(
+    //   'DEBUG GameScreen.build: Checking ${currentTurnMoves.length} unsubmitted moves',
+    // );
     for (final move in currentTurnMoves) {
       if (!move.nullMove && move.to != null) {
         final targetPos = move.to!;
-        print(
-          'DEBUG GameScreen.build: Move targets l=${targetPos.l}, t=${targetPos.t}, maxTurn=$maxTurn',
-        );
+        // print(
+        //   'DEBUG GameScreen.build: Move targets l=${targetPos.l}, t=${targetPos.t}, maxTurn=$maxTurn',
+        // );
         if (targetPos.l == 0) {
           // Check if board exists at target position (even if t > maxTurn)
           final futureBoard = timeline.getBoard(targetPos.t);
           if (futureBoard != null) {
-            print(
-              'DEBUG GameScreen.build: Found board from move at t=${targetPos.t}, deleted=${futureBoard.deleted}',
-            );
+            // print(
+            //   'DEBUG GameScreen.build: Found board from move at t=${targetPos.t}, deleted=${futureBoard.deleted}',
+            // );
             if (!futureBoard.deleted && !boards.contains(futureBoard)) {
-              print(
-                'DEBUG GameScreen.build: Adding future board at t=${targetPos.t}',
-              );
+              // print(
+              //   'DEBUG GameScreen.build: Adding future board at t=${targetPos.t}',
+              // );
               boards.add(futureBoard);
             }
           } else {
-            print(
-              'DEBUG GameScreen.build: Board at t=${targetPos.t} does not exist yet',
-            );
+            // print(
+            //   'DEBUG GameScreen.build: Board at t=${targetPos.t} does not exist yet',
+            // );
           }
         }
       }
@@ -548,15 +548,15 @@ class _BlankBoardsViewState extends State<_BlankBoardsView> {
 
     // Sort boards by turn number to ensure correct order
     boards.sort((a, b) => a.t.compareTo(b.t));
-    print(
-      'DEBUG GameScreen.build: Final board count before build: ${boards.length}',
-    );
-    for (final board in boards) {
-      print(
-        'DEBUG GameScreen.build: Final board list - l=${board.l}, t=${board.t}, turn=${board.turn}, active=${board.active}, deleted=${board.deleted}',
-      );
-    }
-    print('DEBUG GameScreen.build: === END BUILD ===');
+    // print(
+    //   'DEBUG GameScreen.build: Final board count before build: ${boards.length}',
+    // );
+    // for (final board in boards) {
+    //   print(
+    //     'DEBUG GameScreen.build: Final board list - l=${board.l}, t=${board.t}, turn=${board.turn}, active=${board.active}, deleted=${board.deleted}',
+    //   );
+    // }
+    // print('DEBUG GameScreen.build: === END BUILD ===');
 
     return _buildBoardsRow(boards);
   }

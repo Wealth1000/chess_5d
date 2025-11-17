@@ -305,6 +305,41 @@ class GameProvider extends ChangeNotifier {
         return true;
       }
 
+      // Check for en passant capture
+      // En passant: target square is empty, but it's the en passant target square
+      // The en passant target square is set on the board where the enemy pawn moved (target board)
+      // But we're validating from the current board, so we check both current and target boards
+      if (targetPiece == null) {
+        // First check current board
+        if (board.enPassantTargetSquare != null) {
+          final epTarget = board.enPassantTargetSquare!;
+          // For en passant, match x, y, and l - t might differ (move goes to next turn)
+          if (targetPos.x == epTarget.x &&
+              targetPos.y == epTarget.y &&
+              targetPos.l == epTarget.l) {
+            print(
+              'DEBUG GameProvider._isValidPawnMove: En passant capture detected on current board - target (${targetPos.x}, ${targetPos.y}, l=${targetPos.l}, t=${targetPos.t}) matches epTarget (${epTarget.x}, ${epTarget.y}, l=${epTarget.l}, t=${epTarget.t})',
+            );
+            return true; // Valid en passant capture
+          }
+        }
+        
+        // Also check target board if it exists (en passant target might be on target board)
+        final targetTimeline = _game.getTimeline(targetPos.l);
+        final targetBoard = targetTimeline.getBoard(targetPos.t);
+        if (targetBoard != null && targetBoard.enPassantTargetSquare != null) {
+          final epTarget = targetBoard.enPassantTargetSquare!;
+          if (targetPos.x == epTarget.x &&
+              targetPos.y == epTarget.y &&
+              targetPos.l == epTarget.l) {
+            print(
+              'DEBUG GameProvider._isValidPawnMove: En passant capture detected on target board - target (${targetPos.x}, ${targetPos.y}, l=${targetPos.l}, t=${targetPos.t}) matches epTarget (${epTarget.x}, ${epTarget.y}, l=${epTarget.l}, t=${epTarget.t})',
+            );
+            return true; // Valid en passant capture
+          }
+        }
+      }
+
       return false; // Diagonal move requires capture
     }
 
