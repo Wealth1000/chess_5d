@@ -47,12 +47,12 @@ class Move {
       throw StateError('Cannot create move: source piece is not on a board');
     }
 
-    print(
-      'DEBUG Move.constructor: === START === Creating move for ${sourcePiece.type} from (${from?.x}, ${from?.y}) to (${targetPos.x}, ${targetPos.y}) at l=${targetPos.l}, t=${targetPos.t}',
-    );
-    print(
-      'DEBUG Move.constructor: Source board: l=${sourceBoardOriginal.l}, t=${sourceBoardOriginal.t}, turn=${sourceBoardOriginal.turn}',
-    );
+    // print(
+    //   'DEBUG Move.constructor: === START === Creating move for ${sourcePiece.type} from (${from?.x}, ${from?.y}) to (${targetPos.x}, ${targetPos.y}) at l=${targetPos.l}, t=${targetPos.t}',
+    // );
+    // print(
+    //   'DEBUG Move.constructor: Source board: l=${sourceBoardOriginal.l}, t=${sourceBoardOriginal.t}, turn=${sourceBoardOriginal.turn}',
+    // );
 
     // Get the target board from the timeline
     final targetTimeline = game.getTimeline(targetPos.l);
@@ -69,14 +69,14 @@ class Move {
         enemyPieceOnSourceBoard != null &&
         enemyPieceOnSourceBoard.side != sourcePiece.side;
 
-    print(
-      'DEBUG Move.constructor: Target board at l=${targetPos.l}, t=${targetPos.t}: ${targetOriginBoard != null ? "exists" : "null"}',
-    );
-    if (isCapture) {
-      print(
-        'DEBUG Move.constructor: This is a CAPTURE move - capturing ${enemyPieceOnSourceBoard.type} at (${targetPos.x}, ${targetPos.y}) on source board',
-      );
-    }
+    // print(
+    //   'DEBUG Move.constructor: Target board at l=${targetPos.l}, t=${targetPos.t}: ${targetOriginBoard != null ? "exists" : "null"}',
+    // );
+    // if (isCapture) {
+    //   print(
+    //     'DEBUG Move.constructor: This is a CAPTURE move - capturing ${enemyPieceOnSourceBoard.type} at (${targetPos.x}, ${targetPos.y}) on source board',
+    //   );
+    // }
 
     // Get source timeline
     // Debug prints commented out
@@ -100,17 +100,17 @@ class Move {
     // If target board doesn't exist, we need to create it
     // This happens when moving to the next turn on the same timeline
     if (targetOriginBoard == null) {
-      print(
-        'DEBUG Move.constructor: Target board is null - checking if we should create it',
-      );
+      // print(
+      //   'DEBUG Move.constructor: Target board is null - checking if we should create it',
+      // );
       // Check if we're moving to the next turn on the same timeline
       if (targetPos.l == sourceBoardOriginal.l &&
           targetPos.t == sourceBoardOriginal.t + 1) {
         // This is a normal move to the next turn - we'll create the board below
         // For now, we'll use the source board as the "target origin" to clone from
-        print(
-          'DEBUG Move.constructor: Target board is null, but moving to next turn - will create new board',
-        );
+        // print(
+        //   'DEBUG Move.constructor: Target board is null, but moving to next turn - will create new board',
+        // );
         targetOriginBoard = sourceBoardOriginal;
       } else {
         // Cannot move to a non-existent board on a different timeline or turn
@@ -121,11 +121,12 @@ class Move {
           'Cannot create move: target board does not exist at timeline ${targetPos.l}, turn ${targetPos.t}',
         );
       }
-    } else {
-      print(
-        'DEBUG Move.constructor: Target board exists at t=${targetOriginBoard.t}',
-      );
     }
+    // else {
+    //   print(
+    //     'DEBUG Move.constructor: Target board exists at t=${targetOriginBoard.t}',
+    //   );
+    // }
 
     // Track used boards (boards that will become inactive)
     usedBoards.add(sourceBoardOriginal);
@@ -202,9 +203,9 @@ class Move {
     } else {
       // Case 3: Moving on the same board (normal move)
       // Check if we're moving to the next turn (board needs to be created)
-      print(
-        'DEBUG Move.constructor: Checking move type - targetOriginBoard==sourceBoardOriginal: ${targetOriginBoard == sourceBoardOriginal}, targetPos.l==source.l: ${targetPos.l == sourceBoardOriginal.l}, targetPos.t==source.t+1: ${targetPos.t == sourceBoardOriginal.t + 1}',
-      );
+      // print(
+      //   'DEBUG Move.constructor: Checking move type - targetOriginBoard==sourceBoardOriginal: ${targetOriginBoard == sourceBoardOriginal}, targetPos.l==source.l: ${targetPos.l == sourceBoardOriginal.l}, targetPos.t==source.t+1: ${targetPos.t == sourceBoardOriginal.t + 1}',
+      // );
 
       // For captures: targetOriginBoard might exist (if capturing on same turn board)
       // but we still want to create a new board at t+1 for the capture
@@ -216,28 +217,28 @@ class Move {
           targetPos.l == sourceBoardOriginal.l &&
           targetPos.t == sourceBoardOriginal.t + 1;
 
-      print(
-        'DEBUG Move.constructor: shouldCreateNewBoard=$shouldCreateNewBoard',
-      );
-      print(
-        'DEBUG Move.constructor:   - targetOriginBoard==sourceBoardOriginal: ${targetOriginBoard == sourceBoardOriginal}',
-      );
-      print(
-        'DEBUG Move.constructor:   - targetPos.l==source.l: ${targetPos.l == sourceBoardOriginal.l} (targetPos.l=${targetPos.l}, source.l=${sourceBoardOriginal.l})',
-      );
-      print(
-        'DEBUG Move.constructor:   - targetPos.t==source.t+1: ${targetPos.t == sourceBoardOriginal.t + 1} (targetPos.t=${targetPos.t}, source.t=${sourceBoardOriginal.t}, source.t+1=${sourceBoardOriginal.t + 1})',
-      );
-      if (isCapture) {
-        print(
-          'DEBUG Move.constructor: This is a CAPTURE - will create new board if shouldCreateNewBoard is true',
-        );
-        if (!shouldCreateNewBoard) {
-          print(
-            'DEBUG Move.constructor: ERROR - Capture detected but shouldCreateNewBoard is FALSE! This is wrong!',
-          );
-        }
-      }
+      // print(
+      //   'DEBUG Move.constructor: shouldCreateNewBoard=$shouldCreateNewBoard',
+      // );
+      // print(
+      //   'DEBUG Move.constructor:   - targetOriginBoard==sourceBoardOriginal: ${targetOriginBoard == sourceBoardOriginal}',
+      // );
+      // print(
+      //   'DEBUG Move.constructor:   - targetPos.l==source.l: ${targetPos.l == sourceBoardOriginal.l} (targetPos.l=${targetPos.l}, source.l=${sourceBoardOriginal.l})',
+      // );
+      // print(
+      //   'DEBUG Move.constructor:   - targetPos.t==source.t+1: ${targetPos.t == sourceBoardOriginal.t + 1} (targetPos.t=${targetPos.t}, source.t=${sourceBoardOriginal.t}, source.t+1=${sourceBoardOriginal.t + 1})',
+      // );
+      // if (isCapture) {
+      //   print(
+      //     'DEBUG Move.constructor: This is a CAPTURE - will create new board if shouldCreateNewBoard is true',
+      //   );
+      //   if (!shouldCreateNewBoard) {
+      //     print(
+      //       'DEBUG Move.constructor: ERROR - Capture detected but shouldCreateNewBoard is FALSE! This is wrong!',
+      //     );
+      //   }
+      // }
 
       // If targetOriginBoard exists but is NOT the source board, and we're moving to next turn,
       // we might be capturing on an existing board at next turn - this shouldn't happen normally,
@@ -250,9 +251,9 @@ class Move {
           isCapture;
 
       if (shouldCreateNewBoard || isCaptureOnNextTurn) {
-        print(
-          'DEBUG Move.constructor: Moving to next turn - creating new board at t=${targetPos.t}${isCapture ? " (CAPTURE MOVE)" : ""}',
-        );
+        // print(
+        //   'DEBUG Move.constructor: Moving to next turn - creating new board at t=${targetPos.t}${isCapture ? " (CAPTURE MOVE)" : ""}',
+        // );
         // Moving to next turn on same timeline - create new board at next turn
         sourceBoard = game.instantiateBoard(
           sourceBoardOriginal.l,
@@ -264,14 +265,14 @@ class Move {
 
         // Update source board in timeline
         sourceTimeline.setBoard(sourceBoardOriginal.t, sourceBoard!);
-        print(
-          'DEBUG Move.constructor: Source board set at t=${sourceBoardOriginal.t}',
-        );
+        // print(
+        //   'DEBUG Move.constructor: Source board set at t=${sourceBoardOriginal.t}',
+        // );
 
         // Create target board at next turn
-        print(
-          'DEBUG Move.constructor: Creating target board at l=${targetPos.l}, t=${targetPos.t}, turn=${1 - sourceBoardOriginal.turn}',
-        );
+        // print(
+        //   'DEBUG Move.constructor: Creating target board at l=${targetPos.l}, t=${targetPos.t}, turn=${1 - sourceBoardOriginal.turn}',
+        // );
         targetBoard = game.instantiateBoard(
           targetPos.l,
           targetPos.t,
@@ -281,23 +282,23 @@ class Move {
         );
 
         // Set target board in timeline
-        print(
-          'DEBUG Move.constructor: Setting target board in timeline at t=${targetPos.t}',
-        );
+        // print(
+        //   'DEBUG Move.constructor: Setting target board in timeline at t=${targetPos.t}',
+        // );
         sourceTimeline.setBoard(targetPos.t, targetBoard!);
-        print(
-          'DEBUG Move.constructor: Target board set! Timeline end is now ${sourceTimeline.end}',
-        );
+        // print(
+        //   'DEBUG Move.constructor: Target board set! Timeline end is now ${sourceTimeline.end}',
+        // );
       } else {
         // Moving on the same board (same turn)
-        print(
-          'DEBUG Move.constructor: Moving on same board (same turn) - NOT creating new board at t=${targetPos.t}',
-        );
-        if (isCapture) {
-          print(
-            'DEBUG Move.constructor: WARNING - This is a capture but falling into "same board" branch! This might be wrong!',
-          );
-        }
+        // print(
+        //   'DEBUG Move.constructor: Moving on same board (same turn) - NOT creating new board at t=${targetPos.t}',
+        // );
+        // if (isCapture) {
+        //   print(
+        //     'DEBUG Move.constructor: WARNING - This is a capture but falling into "same board" branch! This might be wrong!',
+        //   );
+        // }
         sourceBoard = game.instantiateBoard(
           sourceBoardOriginal.l,
           sourceBoardOriginal.t,
@@ -309,9 +310,9 @@ class Move {
 
         // Update the board in its timeline
         sourceTimeline.setBoard(sourceBoardOriginal.t, sourceBoard!);
-        print(
-          'DEBUG Move.constructor: Same board updated at t=${sourceBoardOriginal.t}, timeline end remains ${sourceTimeline.end}',
-        );
+        // print(
+        //   'DEBUG Move.constructor: Same board updated at t=${sourceBoardOriginal.t}, timeline end remains ${sourceTimeline.end}',
+        // );
       }
 
       isInterDimensionalMove = false;
@@ -325,9 +326,9 @@ class Move {
         targetBoard != sourceBoard &&
         !createdBoards.contains(targetBoard)) {
       createdBoards.add(targetBoard!);
-      print(
-        'DEBUG Move.constructor: Added targetBoard to createdBoards: l=${targetBoard!.l}, t=${targetBoard!.t}',
-      );
+      // print(
+      //   'DEBUG Move.constructor: Added targetBoard to createdBoards: l=${targetBoard!.l}, t=${targetBoard!.t}',
+      // );
     }
 
     // Algorithm: En Passant Handling
@@ -430,9 +431,9 @@ class Move {
         if (epTarget == null &&
             finalTargetBoard.enPassantTargetSquare != null) {
           epTarget = finalTargetBoard.enPassantTargetSquare;
-          print(
-            'DEBUG EnPassant.execute: En passant target square found on target board, not source board',
-          );
+          // print(
+          //   'DEBUG EnPassant.execute: En passant target square found on target board, not source board',
+          // );
         }
         final isEnPassantCapture =
             finalSourcePiece.type == PieceType.pawn &&
@@ -455,25 +456,25 @@ class Move {
           if (targetPos.x == epTarget.x &&
               targetPos.y == epTarget.y &&
               targetPos.l == epTarget.l) {
-            print(
-              'DEBUG EnPassant.execute: EN PASSANT CAPTURE DETECTED! Pawn from (${from!.x}, ${from!.y}) to (${targetPos.x}, ${targetPos.y})',
-            );
-            print(
-              'DEBUG EnPassant.execute: En passant target square: (${epTarget.x}, ${epTarget.y}) at l=${epTarget.l}, t=${epTarget.t}',
-            );
-            print(
-              'DEBUG EnPassant.execute: Enemy pawn should be at (${epTarget.x}, $enemyPawnY)',
-            );
+            // print(
+            //   'DEBUG EnPassant.execute: EN PASSANT CAPTURE DETECTED! Pawn from (${from!.x}, ${from!.y}) to (${targetPos.x}, ${targetPos.y})',
+            // );
+            // print(
+            //   'DEBUG EnPassant.execute: En passant target square: (${epTarget.x}, ${epTarget.y}) at l=${epTarget.l}, t=${epTarget.t}',
+            // );
+            // print(
+            //   'DEBUG EnPassant.execute: Enemy pawn should be at (${epTarget.x}, $enemyPawnY)',
+            // );
 
             // The enemy pawn is on the source board (where the capturing pawn is)
             // The en passant target square tells us the square the enemy pawn passed over,
             // and the enemy pawn is one square forward from that in the enemy's direction
-            print(
-              'DEBUG EnPassant.execute: Looking for enemy pawn on source board at l=${sourceBoardOriginal.l}, t=${sourceBoardOriginal.t}',
-            );
-            print(
-              'DEBUG EnPassant.execute: Enemy pawn should be at (${epTarget.x}, $enemyPawnY)',
-            );
+            // print(
+            //   'DEBUG EnPassant.execute: Looking for enemy pawn on source board at l=${sourceBoardOriginal.l}, t=${sourceBoardOriginal.t}',
+            // );
+            // print(
+            //   'DEBUG EnPassant.execute: Enemy pawn should be at (${epTarget.x}, $enemyPawnY)',
+            // );
 
             // Find the enemy pawn on the target board (it was cloned from source board)
             // IMPORTANT: Do NOT remove from sourceBoardOriginal - that's the past board and should remain unchanged
@@ -486,60 +487,62 @@ class Move {
             if (enemyPawnOnTarget != null &&
                 enemyPawnOnTarget.type == PieceType.pawn &&
                 enemyPawnOnTarget.side != finalSourcePiece.side) {
-              print(
-                'DEBUG EnPassant.execute: Found enemy pawn at (${epTarget.x}, $enemyPawnY) on target board - removing it',
-              );
+              // print(
+              //   'DEBUG EnPassant.execute: Found enemy pawn at (${epTarget.x}, $enemyPawnY) on target board - removing it',
+              // );
 
               // Remove the enemy pawn from the target board only (not from source/past board)
               enemyPawnOnTarget.remove();
               finalTargetBoard.setPiece(epTarget.x, enemyPawnY, null);
-              print(
-                'DEBUG EnPassant.execute: Enemy pawn removed from target board at (${epTarget.x}, $enemyPawnY)',
-              );
-              print(
-                'DEBUG EnPassant.execute: Source board (past) remains unchanged - enemy pawn still visible on past board',
-              );
-            } else {
-              print(
-                'DEBUG EnPassant.execute: ERROR - Enemy pawn not found at (${epTarget.x}, $enemyPawnY) on target board l=${finalTargetBoard.l}, t=${finalTargetBoard.t}',
-              );
-              print(
-                'DEBUG EnPassant.execute: Piece at that location on target board: ${finalTargetBoard.getPiece(epTarget.x, enemyPawnY)?.type}, side: ${finalTargetBoard.getPiece(epTarget.x, enemyPawnY)?.side}',
-              );
-              print(
-                'DEBUG EnPassant.execute: Piece at that location on source board: ${sourceBoardOriginal.getPiece(epTarget.x, enemyPawnY)?.type}, side: ${sourceBoardOriginal.getPiece(epTarget.x, enemyPawnY)?.side}',
-              );
-
-              // Try searching all pieces on the target board to find the enemy pawn
-              print(
-                'DEBUG EnPassant.execute: Searching all pieces on target board for enemy pawn...',
-              );
-              bool foundEnemyPawn = false;
-              for (int x = 0; x < 8; x++) {
-                for (int y = 0; y < 8; y++) {
-                  final piece = finalTargetBoard.getPiece(x, y);
-                  if (piece != null &&
-                      piece.type == PieceType.pawn &&
-                      piece.side != finalSourcePiece.side &&
-                      piece.x == epTarget.x) {
-                    print(
-                      'DEBUG EnPassant.execute: Found enemy pawn at (${piece.x}, ${piece.y}) on target board - expected at (${epTarget.x}, $enemyPawnY)',
-                    );
-                    foundEnemyPawn = true;
-                  }
-                }
-              }
-              if (!foundEnemyPawn) {
-                print(
-                  'DEBUG EnPassant.execute: No enemy pawn found anywhere on target board',
-                );
-              }
+              // print(
+              //   'DEBUG EnPassant.execute: Enemy pawn removed from target board at (${epTarget.x}, $enemyPawnY)',
+              // );
+              // print(
+              //   'DEBUG EnPassant.execute: Source board (past) remains unchanged - enemy pawn still visible on past board',
+              // );
             }
-          } else {
-            print(
-              'DEBUG EnPassant.execute: En passant check failed - target (${targetPos.x}, ${targetPos.y}, l=${targetPos.l}, t=${targetPos.t}) != epTarget (${epTarget.x}, ${epTarget.y}, l=${epTarget.l}, t=${epTarget.t})',
-            );
+            // else {
+            //   print(
+            //     'DEBUG EnPassant.execute: ERROR - Enemy pawn not found at (${epTarget.x}, $enemyPawnY) on target board l=${finalTargetBoard.l}, t=${finalTargetBoard.t}',
+            //   );
+            //   print(
+            //     'DEBUG EnPassant.execute: Piece at that location on target board: ${finalTargetBoard.getPiece(epTarget.x, enemyPawnY)?.type}, side: ${finalTargetBoard.getPiece(epTarget.x, enemyPawnY)?.side}',
+            //   );
+            //   print(
+            //     'DEBUG EnPassant.execute: Piece at that location on source board: ${sourceBoardOriginal.getPiece(epTarget.x, enemyPawnY)?.type}, side: ${sourceBoardOriginal.getPiece(epTarget.x, enemyPawnY)?.side}',
+            //   );
+            //
+            //   // Try searching all pieces on the target board to find the enemy pawn
+            //   print(
+            //     'DEBUG EnPassant.execute: Searching all pieces on target board for enemy pawn...',
+            //   );
+            //   bool foundEnemyPawn = false;
+            //   for (int x = 0; x < 8; x++) {
+            //     for (int y = 0; y < 8; y++) {
+            //       final piece = finalTargetBoard.getPiece(x, y);
+            //       if (piece != null &&
+            //           piece.type == PieceType.pawn &&
+            //           piece.side != finalSourcePiece.side &&
+            //           piece.x == epTarget.x) {
+            //         print(
+            //           'DEBUG EnPassant.execute: Found enemy pawn at (${piece.x}, ${piece.y}) on target board - expected at (${epTarget.x}, $enemyPawnY)',
+            //         );
+            //         foundEnemyPawn = true;
+            //       }
+            //     }
+            //   }
+            //   if (!foundEnemyPawn) {
+            //     print(
+            //       'DEBUG EnPassant.execute: No enemy pawn found anywhere on target board',
+            //     );
+            //   }
+            // }
           }
+          // else {
+          //   print(
+          //     'DEBUG EnPassant.execute: En passant check failed - target (${targetPos.x}, ${targetPos.y}, l=${targetPos.l}, t=${targetPos.t}) != epTarget (${epTarget.x}, ${epTarget.y}, l=${epTarget.l}, t=${epTarget.t})',
+          //   );
+          // }
         }
 
         // Normal move - move the piece on the target board
@@ -692,9 +695,9 @@ class Move {
       if (finalSourcePiece.type != PieceType.pawn) {
         // Not a pawn - clear en passant target square
         finalTargetBoard.enPassantTargetSquare = null;
-        print(
-          'DEBUG EnPassant.execute: Non-pawn move - cleared enPassantTargetSquare',
-        );
+        // print(
+        //   'DEBUG EnPassant.execute: Non-pawn move - cleared enPassantTargetSquare',
+        // );
       } else {
         // Pawn move - check if it moved 2 squares forward
         if (from != null) {
@@ -717,38 +720,38 @@ class Move {
             );
 
             finalTargetBoard.enPassantTargetSquare = epTarget;
-            print(
-              'DEBUG EnPassant.execute: Pawn moved 2 squares forward - set enPassantTargetSquare to (${epTarget.x}, ${epTarget.y}) at l=${epTarget.l}, t=${epTarget.t}',
-            );
+            // print(
+            //   'DEBUG EnPassant.execute: Pawn moved 2 squares forward - set enPassantTargetSquare to (${epTarget.x}, ${epTarget.y}) at l=${epTarget.l}, t=${epTarget.t}',
+            // );
           } else {
             // Pawn did not move 2 squares - clear en passant target square
             finalTargetBoard.enPassantTargetSquare = null;
-            print(
-              'DEBUG EnPassant.execute: Pawn move (not 2 squares) - cleared enPassantTargetSquare (dy=$dy, dx=$dx)',
-            );
+            // print(
+            //   'DEBUG EnPassant.execute: Pawn move (not 2 squares) - cleared enPassantTargetSquare (dy=$dy, dx=$dx)',
+            // );
           }
         } else {
           // No from position - clear en passant target square
           finalTargetBoard.enPassantTargetSquare = null;
-          print(
-            'DEBUG EnPassant.execute: Pawn move (no from position) - cleared enPassantTargetSquare',
-          );
+          // print(
+          //   'DEBUG EnPassant.execute: Pawn move (no from position) - cleared enPassantTargetSquare',
+          // );
         }
       }
     }
 
     // Make used boards inactive
-    print(
-      'DEBUG Move.execute: Making ${usedBoards.length} used boards inactive',
-    );
+    // print(
+    //   'DEBUG Move.execute: Making ${usedBoards.length} used boards inactive',
+    // );
     for (final board in usedBoards) {
-      print(
-        'DEBUG Move.execute: Making board inactive: l=${board.l}, t=${board.t}',
-      );
+      // print(
+      //   'DEBUG Move.execute: Making board inactive: l=${board.l}, t=${board.t}',
+      // );
       board.makeInactive();
     }
 
-    print('DEBUG Move.execute: === MOVE EXECUTE END ===');
+    // print('DEBUG Move.execute: === MOVE EXECUTE END ===');
   }
 
   /// Private constructor for null moves (internal use only)
@@ -901,29 +904,29 @@ class Move {
   ///
   /// Reverses the move by removing created boards and reactivating used boards
   void undo() {
-    print('DEBUG Move.undo: Starting undo for move');
-    print(
-      'DEBUG Move.undo: Created boards count: ${createdBoards.length}, Used boards count: ${usedBoards.length}',
-    );
+    // print('DEBUG Move.undo: Starting undo for move');
+    // print(
+    //   'DEBUG Move.undo: Created boards count: ${createdBoards.length}, Used boards count: ${usedBoards.length}',
+    // );
 
     // Remove created boards and reactivate used boards
     for (int i = 0; i < createdBoards.length; i++) {
       final createdBoard = createdBoards[i];
-      print(
-        'DEBUG Move.undo: Removing created board at l=${createdBoard.l}, t=${createdBoard.t}',
-      );
+      // print(
+      //   'DEBUG Move.undo: Removing created board at l=${createdBoard.l}, t=${createdBoard.t}',
+      // );
 
       // Remove the board from its timeline
       final timeline = game.getTimeline(createdBoard.l);
-      print(
-        'DEBUG Move.undo: Timeline l=${timeline.l} before removal: start=${timeline.start}, end=${timeline.end}',
-      );
+      // print(
+      //   'DEBUG Move.undo: Timeline l=${timeline.l} before removal: start=${timeline.start}, end=${timeline.end}',
+      // );
 
       // Check if this is the last board in the timeline (affects end)
       final isLastBoard = createdBoard.t == timeline.end;
-      print(
-        'DEBUG Move.undo: Is last board in timeline: $isLastBoard (board.t=${createdBoard.t}, timeline.end=${timeline.end})',
-      );
+      // print(
+      //   'DEBUG Move.undo: Is last board in timeline: $isLastBoard (board.t=${createdBoard.t}, timeline.end=${timeline.end})',
+      // );
 
       timeline.boards[createdBoard.t - timeline.start] = null;
 
@@ -938,21 +941,21 @@ class Move {
         }
         final oldEnd = timeline.end;
         timeline.end = newEnd;
-        print('DEBUG Move.undo: Updated timeline end from $oldEnd to $newEnd');
+        // print('DEBUG Move.undo: Updated timeline end from $oldEnd to $newEnd');
       }
 
       // Remove the board (this will clean up pieces)
       createdBoard.remove();
-      print(
-        'DEBUG Move.undo: Board removed and cleaned up at l=${createdBoard.l}, t=${createdBoard.t}',
-      );
+      // print(
+      //   'DEBUG Move.undo: Board removed and cleaned up at l=${createdBoard.l}, t=${createdBoard.t}',
+      // );
 
       // Reactivate the corresponding used board if it exists
       if (i < usedBoards.length) {
         final usedBoard = usedBoards[i];
-        print(
-          'DEBUG Move.undo: Reactivating used board at l=${usedBoard.l}, t=${usedBoard.t}',
-        );
+        // print(
+        //   'DEBUG Move.undo: Reactivating used board at l=${usedBoard.l}, t=${usedBoard.t}',
+        // );
         usedBoard.makeActive();
       }
     }
@@ -961,15 +964,15 @@ class Move {
     if (isInterDimensionalMove &&
         targetBoard != sourceBoard &&
         targetBoard != null) {
-      print(
-        'DEBUG Move.undo: Checking if timeline branch should be removed: targetBoard l=${targetBoard!.l}',
-      );
+      // print(
+      //   'DEBUG Move.undo: Checking if timeline branch should be removed: targetBoard l=${targetBoard!.l}',
+      // );
       final targetTimeline = game.getTimeline(targetBoard!.l);
       // Check if timeline is now empty
       if (targetTimeline.boardCount == 0) {
-        print(
-          'DEBUG Move.undo: Timeline branch is empty - removing timeline l=${targetBoard!.l}',
-        );
+        // print(
+        //   'DEBUG Move.undo: Timeline branch is empty - removing timeline l=${targetBoard!.l}',
+        // );
         // Remove the timeline (this is handled by the timeline itself)
         targetTimeline.remove();
 
@@ -977,19 +980,20 @@ class Move {
         final side = targetBoard!.l < 0 ? 0 : 1;
         if (game.timelineCount[side] > 0) {
           game.timelineCount[side] = game.timelineCount[side] - 1;
-          print(
-            'DEBUG Move.undo: Updated timeline count for side $side to ${game.timelineCount[side]}',
-          );
+          // print(
+          //   'DEBUG Move.undo: Updated timeline count for side $side to ${game.timelineCount[side]}',
+          // );
         }
-      } else {
-        print(
-          'DEBUG Move.undo: Timeline branch still has boards (count=${targetTimeline.boardCount}) - not removing',
-        );
       }
+      // else {
+      //   print(
+      //     'DEBUG Move.undo: Timeline branch still has boards (count=${targetTimeline.boardCount}) - not removing',
+      //   );
+      // }
     }
 
     _executed = false;
-    print('DEBUG Move.undo: Undo completed');
+    // print('DEBUG Move.undo: Undo completed');
   }
 
   /// Serialize this move to JSON

@@ -240,7 +240,7 @@ class Game {
     Board? initialBoard,
     bool fastForward,
   ) {
-    print('DEBUG Board Creation: Creating board at l=$l, t=$t, turn=$turn');
+    // print('DEBUG Board Creation: Creating board at l=$l, t=$t, turn=$turn');
     final board = Board(
       game: this,
       l: l,
@@ -249,7 +249,7 @@ class Game {
       initialBoard: initialBoard,
       fastForward: fastForward,
     );
-    print('DEBUG Board Creation: Board created successfully at l=$l, t=$t');
+    // print('DEBUG Board Creation: Board created successfully at l=$l, t=$t');
     return board;
   }
 
