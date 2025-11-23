@@ -136,8 +136,31 @@ class GameScreen extends StatelessWidget {
                 painter: const _CheckeredBackgroundPainter(squareSize: 40.0),
               ),
             ),
-            // Scrollable content area with boards
-            _BlankBoardsView(gameProvider: gameProvider),
+            // Present indicator bar (vertical bar through the most recent board)
+            // Placed BEFORE boards in Stack so it renders behind them
+            Builder(
+              builder: (context) {
+                final containerKey =
+                    GlobalKey<_PresentIndicatorBarContainerState>();
+                return Stack(
+                  children: [
+                    _PresentIndicatorBarContainer(
+                      key: containerKey,
+                      gameProvider: gameProvider,
+                    ),
+                    // Scrollable content area with boards
+                    _BlankBoardsView(
+                      gameProvider: gameProvider,
+                      onScrollControllerReady: (controller) {
+                        containerKey.currentState?._onScrollControllerReady(
+                          controller,
+                        );
+                      },
+                    ),
+                  ],
+                );
+              },
+            ),
 
             // Fixed view mode buttons at the top
             Align(
@@ -286,18 +309,29 @@ class _BottomActions extends StatelessWidget {
 
 /// View for displaying blank boards with scrollable and zoomable background
 class _BlankBoardsView extends StatefulWidget {
-  const _BlankBoardsView({required this.gameProvider});
+  const _BlankBoardsView({
+    required this.gameProvider,
+    this.onScrollControllerReady,
+  });
 
   final GameProvider gameProvider;
+  final void Function(ScrollController)? onScrollControllerReady;
 
   @override
   State<_BlankBoardsView> createState() => _BlankBoardsViewState();
 }
 
-class _BlankBoardsViewState extends State<_BlankBoardsView> {
+class _BlankBoardsViewState extends State<_BlankBoardsView>
+    with TickerProviderStateMixin {
   final ScrollController _horizontalScrollController = ScrollController();
   final ScrollController _verticalScrollController = ScrollController();
   int _previousTurnCount = 0;
+
+  // Track boards and their animation states
+  final Map<int, AnimationController> _boardAnimationControllers = {};
+  final Set<int> _boardsBeingDeleted = {};
+  final Set<int> _boardsBeingCreated = {};
+  List<Board> _previousBoards = [];
 
   @override
   void initState() {
@@ -307,6 +341,21 @@ class _BlankBoardsViewState extends State<_BlankBoardsView> {
     // Track initial turn count (use end, not end + 1)
     final timeline = widget.gameProvider.game.getTimeline(0);
     _previousTurnCount = timeline.end;
+    // Initialize previous boards list
+    _previousBoards = _getCurrentBoards();
+    // Initialize animation controllers for existing boards
+    for (final board in _previousBoards) {
+      final controller = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 300),
+      );
+      controller.value = 1.0; // Existing boards are fully visible
+      _boardAnimationControllers[board.t] = controller;
+    }
+    // Notify parent about scroll controller
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      widget.onScrollControllerReady?.call(_horizontalScrollController);
+    });
   }
 
   @override
@@ -314,6 +363,11 @@ class _BlankBoardsViewState extends State<_BlankBoardsView> {
     widget.gameProvider.removeListener(_onGameStateChanged);
     _horizontalScrollController.dispose();
     _verticalScrollController.dispose();
+    // Dispose all animation controllers
+    for (final controller in _boardAnimationControllers.values) {
+      controller.dispose();
+    }
+    _boardAnimationControllers.clear();
     super.dispose();
   }
 
@@ -323,37 +377,96 @@ class _BlankBoardsViewState extends State<_BlankBoardsView> {
       final timeline = widget.gameProvider.game.getTimeline(0);
       final currentTurnCount = timeline.end;
 
-      // print(
-      //   'DEBUG GameScreen._onGameStateChanged: currentTurnCount=$currentTurnCount, _previousTurnCount=$_previousTurnCount',
-      // );
+      // Get current boards to detect changes
+      final currentBoards = _getCurrentBoards();
+      final currentBoardTurns = currentBoards.map((b) => b.t).toSet();
+      final previousBoardTurns = _previousBoards.map((b) => b.t).toSet();
+
+      // Detect newly created boards
+      final newBoards = currentBoardTurns.difference(previousBoardTurns);
+      for (final turn in newBoards) {
+        if (!_boardAnimationControllers.containsKey(turn)) {
+          // Create animation controller for new board
+          final controller = AnimationController(
+            vsync: this,
+            duration: const Duration(milliseconds: 300),
+          );
+          _boardAnimationControllers[turn] = controller;
+          _boardsBeingCreated.add(turn);
+          // Start fade-in animation
+          controller.forward(from: 0.0);
+          // Remove from being created after animation
+          controller.addStatusListener((status) {
+            if (status == AnimationStatus.completed) {
+              setState(() {
+                _boardsBeingCreated.remove(turn);
+              });
+            }
+          });
+        }
+      }
+
+      // Detect boards being deleted (present in previous but not in current)
+      final deletedBoards = previousBoardTurns.difference(currentBoardTurns);
+      for (final turn in deletedBoards) {
+        if (_boardAnimationControllers.containsKey(turn) &&
+            !_boardsBeingDeleted.contains(turn)) {
+          _boardsBeingDeleted.add(turn);
+          final controller = _boardAnimationControllers[turn]!;
+          // Start fade-out animation
+          controller.reverse().then((_) {
+            // Clean up after animation completes
+            if (mounted) {
+              setState(() {
+                _boardsBeingDeleted.remove(turn);
+                controller.dispose();
+                _boardAnimationControllers.remove(turn);
+                // Remove from previous boards as well
+                _previousBoards.removeWhere((b) => b.t == turn);
+              });
+            }
+          });
+        } else if (!_boardAnimationControllers.containsKey(turn)) {
+          // Board is being deleted but doesn't have an animation controller yet
+          // This can happen if the board was just created and immediately deleted
+          // Create a controller and animate it out
+          final controller = AnimationController(
+            vsync: this,
+            duration: const Duration(milliseconds: 300),
+          );
+          controller.value = 1.0; // Start at full opacity
+          _boardAnimationControllers[turn] = controller;
+          _boardsBeingDeleted.add(turn);
+          // Start fade-out animation
+          controller.reverse().then((_) {
+            // Clean up after animation completes
+            if (mounted) {
+              setState(() {
+                _boardsBeingDeleted.remove(turn);
+                controller.dispose();
+                _boardAnimationControllers.remove(turn);
+                // Remove from previous boards as well
+                _previousBoards.removeWhere((b) => b.t == turn);
+              });
+            }
+          });
+        }
+      }
+
+      // Update previous boards AFTER detecting changes
+      // This ensures we have the boards stored before they're deleted
+      _previousBoards = List.from(currentBoards);
 
       // Check if a new board was added OR if the turn count changed (could be undo)
       if (currentTurnCount != _previousTurnCount) {
-        // print(
-        //   'DEBUG GameScreen._onGameStateChanged: Turn count changed from $_previousTurnCount to $currentTurnCount',
-        // );
         if (currentTurnCount > _previousTurnCount) {
           // A new board was added - scroll to it after the frame is built
-          // print(
-          //   'DEBUG GameScreen._onGameStateChanged: New board added - will scroll to it',
-          // );
           WidgetsBinding.instance.addPostFrameCallback((_) {
             _scrollToNewBoard();
           });
         }
-        // else {
-        //   // Turn count decreased (undo happened) - update tracking but don't scroll
-        //   print(
-        //     'DEBUG GameScreen._onGameStateChanged: Turn count decreased (undo) - updating _previousTurnCount',
-        //   );
-        // }
         _previousTurnCount = currentTurnCount;
       }
-      // else {
-      //   print(
-      //     'DEBUG GameScreen._onGameStateChanged: Turn count unchanged - no scroll needed',
-      //   );
-      // }
 
       // Check for checkmate and show dialog
       if (widget.gameProvider.checkmateDetected) {
@@ -363,6 +476,61 @@ class _BlankBoardsViewState extends State<_BlankBoardsView> {
         });
       }
     });
+  }
+
+  List<Board> _getCurrentBoards() {
+    final timeline = widget.gameProvider.game.getTimeline(0);
+    final boards = <Board>[];
+
+    // Get all active boards from the timeline
+    final activeBoards = timeline.getActiveBoards();
+    for (final board in activeBoards) {
+      if (board.l == 0 && !board.deleted) {
+        boards.add(board);
+      }
+    }
+
+    // Also check boards by turn number directly
+    final maxTurn = timeline.end;
+    for (int t = -1; t <= maxTurn + 1; t++) {
+      final board = timeline.getBoard(t);
+      if (board != null && !board.deleted && !boards.contains(board)) {
+        boards.add(board);
+      }
+    }
+
+    // Also check if there are any unsubmitted moves that create boards at the next turn
+    final currentTurnMoves = widget.gameProvider.game.currentTurnMoves;
+    for (final move in currentTurnMoves) {
+      if (!move.nullMove && move.to != null) {
+        final targetPos = move.to!;
+        if (targetPos.l == 0) {
+          final futureBoard = timeline.getBoard(targetPos.t);
+          if (futureBoard != null &&
+              !futureBoard.deleted &&
+              !boards.contains(futureBoard)) {
+            boards.add(futureBoard);
+          }
+        }
+      }
+    }
+
+    // Include boards that are being deleted (for animation purposes)
+    for (final turn in _boardsBeingDeleted) {
+      // Find the board from previous boards list or timeline
+      Board? deletedBoard;
+      try {
+        deletedBoard = _previousBoards.firstWhere((b) => b.t == turn);
+      } catch (e) {
+        deletedBoard = timeline.getBoard(turn);
+      }
+      if (deletedBoard != null && !boards.contains(deletedBoard)) {
+        boards.add(deletedBoard);
+      }
+    }
+
+    boards.sort((a, b) => a.t.compareTo(b.t));
+    return boards;
   }
 
   void _scrollToNewBoard() {
@@ -458,87 +626,11 @@ class _BlankBoardsViewState extends State<_BlankBoardsView> {
 
   @override
   Widget build(BuildContext context) {
-    // Get all boards from the timeline (main timeline, all turns)
-    final timeline = widget.gameProvider.game.getTimeline(0);
-    final boards = <Board>[];
-
-    // Debug prints commented out
-    // print('DEBUG GameScreen.build: === START BUILD ===');
-    // print(
-    //   'DEBUG GameScreen.build: Timeline l=0, start=${timeline.start}, end=${timeline.end}',
-    // );
-
-    // Get all active boards from the timeline
-    final activeBoards = timeline.getActiveBoards();
-    // print('DEBUG GameScreen.build: Found ${activeBoards.length} active boards');
-    for (final board in activeBoards) {
-      // print(
-      //   'DEBUG GameScreen.build: Active board at l=${board.l}, t=${board.t}, active=${board.active}, deleted=${board.deleted}',
-      // );
-      if (board.l == 0 && !board.deleted) {
-        // print('DEBUG GameScreen.build: Adding active board at t=${board.t}');
-        boards.add(board);
-      }
-    }
-
-    // Also check boards by turn number directly (in case some aren't in activeBoards)
-    final maxTurn = timeline.end;
-    // print(
-    //   'DEBUG GameScreen.build: Checking boards from t=-1 to t=${maxTurn + 1}',
-    // );
-    for (int t = -1; t <= maxTurn + 1; t++) {
-      final board = timeline.getBoard(t);
-      if (board != null) {
-        // print(
-        //   'DEBUG GameScreen.build: Found board at t=$t: l=${board.l}, active=${board.active}, deleted=${board.deleted}',
-        // );
-        if (!board.deleted && !boards.contains(board)) {
-          // print(
-          //   'DEBUG GameScreen.build: Adding board at t=$t (not in activeBoards or already collected)',
-          // );
-          boards.add(board);
-        }
-      }
-    }
-
-    // Also check if there are any unsubmitted moves that create boards at the next turn
-    final currentTurnMoves = widget.gameProvider.game.currentTurnMoves;
-    // print(
-    //   'DEBUG GameScreen.build: Checking ${currentTurnMoves.length} unsubmitted moves',
-    // );
-    for (final move in currentTurnMoves) {
-      if (!move.nullMove && move.to != null) {
-        final targetPos = move.to!;
-        // print(
-        //   'DEBUG GameScreen.build: Move targets l=${targetPos.l}, t=${targetPos.t}, maxTurn=$maxTurn',
-        // );
-        if (targetPos.l == 0) {
-          // Check if board exists at target position (even if t > maxTurn)
-          final futureBoard = timeline.getBoard(targetPos.t);
-          if (futureBoard != null) {
-            // print(
-            //   'DEBUG GameScreen.build: Found board from move at t=${targetPos.t}, deleted=${futureBoard.deleted}',
-            // );
-            if (!futureBoard.deleted && !boards.contains(futureBoard)) {
-              // print(
-              //   'DEBUG GameScreen.build: Adding future board at t=${targetPos.t}',
-              // );
-              boards.add(futureBoard);
-            }
-          } else {
-            // print(
-            //   'DEBUG GameScreen.build: Board at t=${targetPos.t} does not exist yet',
-            // );
-          }
-        }
-      }
-    }
-
-    // print('DEBUG GameScreen.build: Total boards collected: ${boards.length}');
+    // Get current boards
+    final boards = _getCurrentBoards();
 
     // If no boards found, create initial board
     if (boards.isEmpty) {
-      // print('DEBUG GameScreen.build: No boards found, creating initial board');
       final initialBoard = BoardSetup.createInitialBoard(
         widget.gameProvider.game,
         0,
@@ -547,18 +639,6 @@ class _BlankBoardsViewState extends State<_BlankBoardsView> {
       );
       return _buildBoardsRow([initialBoard]);
     }
-
-    // Sort boards by turn number to ensure correct order
-    boards.sort((a, b) => a.t.compareTo(b.t));
-    // print(
-    //   'DEBUG GameScreen.build: Final board count before build: ${boards.length}',
-    // );
-    // for (final board in boards) {
-    //   print(
-    //     'DEBUG GameScreen.build: Final board list - l=${board.l}, t=${board.t}, turn=${board.turn}, active=${board.active}, deleted=${board.deleted}',
-    //   );
-    // }
-    // print('DEBUG GameScreen.build: === END BUILD ===');
 
     return _buildBoardsRow(boards);
   }
@@ -596,6 +676,18 @@ class _BlankBoardsViewState extends State<_BlankBoardsView> {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: boards.map((board) {
+                        // Get animation controller for this board
+                        final controller = _boardAnimationControllers[board.t];
+                        if (controller != null) {
+                          // Board has animation - use animated view
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                            ),
+                            child: _buildAnimatedBoardView(board, controller),
+                          );
+                        }
+                        // Fallback: board without animation (shouldn't happen after init)
                         return Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16.0),
                           child: _buildBoardView(board),
@@ -609,6 +701,26 @@ class _BlankBoardsViewState extends State<_BlankBoardsView> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildAnimatedBoardView(Board board, AnimationController controller) {
+    // Create fade and scale animations
+    final fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: controller, curve: Curves.easeInOut));
+    final scaleAnimation = Tween<double>(
+      begin: 0.8,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: controller, curve: Curves.easeOut));
+
+    return FadeTransition(
+      opacity: fadeAnimation,
+      child: ScaleTransition(
+        scale: scaleAnimation,
+        child: _buildBoardView(board),
+      ),
     );
   }
 
@@ -681,6 +793,375 @@ class _BlankBoardsViewState extends State<_BlankBoardsView> {
 
   Future<void> _handleSquareTap(Vec4 position) async {
     widget.gameProvider.handleSquareTap(position);
+  }
+}
+
+/// Container for present indicator bar that manages scroll controller
+class _PresentIndicatorBarContainer extends StatefulWidget {
+  const _PresentIndicatorBarContainer({super.key, required this.gameProvider});
+
+  final GameProvider gameProvider;
+
+  @override
+  State<_PresentIndicatorBarContainer> createState() =>
+      _PresentIndicatorBarContainerState();
+}
+
+class _PresentIndicatorBarContainerState
+    extends State<_PresentIndicatorBarContainer> {
+  ScrollController? _scrollController;
+
+  void _onScrollControllerReady(ScrollController controller) {
+    setState(() {
+      _scrollController = controller;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_scrollController == null) {
+      return const SizedBox.shrink();
+    }
+    return _PresentIndicatorBar(
+      gameProvider: widget.gameProvider,
+      scrollController: _scrollController!,
+    );
+  }
+}
+
+/// Present indicator bar widget
+///
+/// Displays a vertical bar that passes through the most recent board (the present).
+/// The bar changes color based on whose turn it is.
+class _PresentIndicatorBar extends StatefulWidget {
+  const _PresentIndicatorBar({
+    required this.gameProvider,
+    required this.scrollController,
+  });
+
+  final GameProvider gameProvider;
+  final ScrollController scrollController;
+
+  @override
+  State<_PresentIndicatorBar> createState() => _PresentIndicatorBarState();
+}
+
+class _PresentIndicatorBarState extends State<_PresentIndicatorBar>
+    with TickerProviderStateMixin {
+  AnimationController? _positionAnimationController;
+  Animation<double>? _positionAnimation;
+  double _targetBarPosition = 0.0;
+  double _lastKnownPosition =
+      0.0; // Keep last known position to prevent disappearing
+  int? _previousMostRecentBoardT;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.gameProvider.addListener(_onGameStateChanged);
+    widget.scrollController.addListener(_onScroll);
+    _positionAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _positionAnimation = Tween<double>(begin: 0.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _positionAnimationController!,
+        curve: Curves.easeInOut,
+      ),
+    );
+    _positionAnimation!.addListener(() {
+      setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    widget.gameProvider.removeListener(_onGameStateChanged);
+    widget.scrollController.removeListener(_onScroll);
+    _positionAnimationController?.dispose();
+    super.dispose();
+  }
+
+  bool _isScrolling = false;
+
+  void _onScroll() {
+    // Mark that we're scrolling - build will handle updating position immediately
+    _isScrolling = true;
+    setState(() {});
+  }
+
+  void _onGameStateChanged() {
+    // Just trigger rebuild - build will handle animation logic
+    setState(() {});
+  }
+
+  bool _updateTargetPosition(BuildContext context) {
+    final timeline = widget.gameProvider.game.getTimeline(0);
+    final mostRecentBoard = timeline.getBoard(timeline.end);
+
+    if (mostRecentBoard == null) {
+      return false; // Indicate failure
+    }
+
+    // Board layout measurements
+    const boardCoreWidth = 300.0;
+    const boardContainerPadding = 8.0;
+    const boardBorderWidth = 3.0;
+    const boardOuterPadding = 16.0;
+    const boardContainerWidth =
+        boardCoreWidth + (boardContainerPadding * 2) + (boardBorderWidth * 2);
+    const totalBoardWidth = boardContainerWidth + (boardOuterPadding * 2);
+
+    // Get all boards
+    final boards = <Board>[];
+    final activeBoards = timeline.getActiveBoards();
+    for (final board in activeBoards) {
+      if (board.l == 0 && !board.deleted) {
+        boards.add(board);
+      }
+    }
+
+    final maxTurn = timeline.end;
+    for (int t = -1; t <= maxTurn + 1; t++) {
+      final board = timeline.getBoard(t);
+      if (board != null && !board.deleted && !boards.contains(board)) {
+        boards.add(board);
+      }
+    }
+
+    boards.sort((a, b) => a.t.compareTo(b.t));
+
+    if (boards.isEmpty) {
+      return false; // Indicate failure
+    }
+
+    final mostRecentIndex = boards.length - 1;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final totalBoardsWidth = boards.length * totalBoardWidth;
+    final contentStartX = (totalBoardsWidth > screenWidth)
+        ? 0.0
+        : (screenWidth - totalBoardsWidth) / 2;
+    final boardCenterXInContent =
+        contentStartX +
+        (mostRecentIndex * totalBoardWidth) +
+        (boardOuterPadding + (boardContainerWidth / 2));
+    final scrollOffset = widget.scrollController.hasClients
+        ? widget.scrollController.offset
+        : 0.0;
+    final boardCenterXOnScreen = boardCenterXInContent - scrollOffset;
+    const barWidth = boardCoreWidth * 0.8;
+    _targetBarPosition = boardCenterXOnScreen - (barWidth / 2);
+    return true; // Indicate success
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Get the most recent board (the present)
+    final timeline = widget.gameProvider.game.getTimeline(0);
+    final mostRecentBoard = timeline.getBoard(timeline.end);
+
+    // Get current turn (0 = black, 1 = white)
+    final currentTurn = widget.gameProvider.turn;
+    final barColor = currentTurn == 1 ? Colors.white : Colors.black;
+
+    // If board is null, use last known position to prevent disappearing
+    if (mostRecentBoard == null) {
+      final barWidth = 300.0 * 0.8;
+      final barPosition = _positionAnimation?.value ?? _lastKnownPosition;
+
+      // If we have no position at all, don't show the bar
+      if (barPosition == 0.0 && _lastKnownPosition == 0.0) {
+        return const SizedBox.shrink();
+      }
+
+      return Positioned(
+        left: barPosition,
+        top: 0,
+        bottom: 0,
+        child: IgnorePointer(
+          child: Container(
+            width: barWidth,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [
+                  _lightenColor(barColor, 0.1).withValues(alpha: 0.85),
+                  barColor.withValues(alpha: 0.9),
+                  barColor.withValues(alpha: 0.9),
+                  _lightenColor(barColor, 0.1).withValues(alpha: 0.85),
+                ],
+                stops: const [0.0, 0.2, 0.8, 1.0],
+              ),
+              border: Border.symmetric(
+                horizontal: BorderSide(color: barColor, width: 2.0),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Update target position - only proceed if successful
+    final positionUpdateSuccess = _updateTargetPosition(context);
+
+    // Get current position - prefer animation value, fall back to last known or target
+    final currentPosition =
+        _positionAnimation?.value ??
+        (_lastKnownPosition != 0.0 ? _lastKnownPosition : _targetBarPosition);
+
+    // If position update failed, use last known position and don't animate
+    if (!positionUpdateSuccess) {
+      final barWidth = 300.0 * 0.8;
+      final barPosition = currentPosition;
+      if (barPosition != 0.0) {
+        _lastKnownPosition = barPosition;
+      }
+      return Positioned(
+        left: barPosition,
+        top: 0,
+        bottom: 0,
+        child: IgnorePointer(
+          child: Container(
+            width: barWidth,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [
+                  _lightenColor(barColor, 0.1).withValues(alpha: 0.85),
+                  barColor.withValues(alpha: 0.9),
+                  barColor.withValues(alpha: 0.9),
+                  _lightenColor(barColor, 0.1).withValues(alpha: 0.85),
+                ],
+                stops: const [0.0, 0.2, 0.8, 1.0],
+              ),
+              border: Border.symmetric(
+                horizontal: BorderSide(color: barColor, width: 2.0),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final currentBoardT = mostRecentBoard.t;
+
+    // Handle initialization
+    if (_previousMostRecentBoardT == null) {
+      _previousMostRecentBoardT = currentBoardT;
+      _lastKnownPosition = _targetBarPosition;
+      if (_positionAnimationController != null) {
+        _positionAnimation =
+            Tween<double>(
+              begin: _targetBarPosition,
+              end: _targetBarPosition,
+            ).animate(
+              CurvedAnimation(
+                parent: _positionAnimationController!,
+                curve: Curves.easeInOut,
+              ),
+            );
+        _positionAnimation!.addListener(() {
+          setState(() {});
+        });
+        _positionAnimationController!.value = 1.0;
+      }
+    }
+    // Handle scrolling - update position immediately without animation
+    else if (_isScrolling) {
+      _isScrolling = false;
+      if (_positionAnimationController != null) {
+        _positionAnimation =
+            Tween<double>(
+              begin: currentPosition,
+              end: _targetBarPosition,
+            ).animate(
+              CurvedAnimation(
+                parent: _positionAnimationController!,
+                curve: Curves.easeInOut,
+              ),
+            );
+        _positionAnimation!.addListener(() {
+          setState(() {});
+        });
+        // Set to end immediately when scrolling
+        _positionAnimationController!.value = 1.0;
+        _lastKnownPosition = _targetBarPosition;
+      }
+    }
+    // Handle new board created - animate from current position to new target
+    else if (_previousMostRecentBoardT != currentBoardT) {
+      // Only animate if we have a valid current position and target position
+      if (currentPosition != 0.0 &&
+          _targetBarPosition != 0.0 &&
+          _positionAnimationController != null) {
+        _positionAnimation =
+            Tween<double>(
+              begin: currentPosition,
+              end: _targetBarPosition,
+            ).animate(
+              CurvedAnimation(
+                parent: _positionAnimationController!,
+                curve: Curves.easeInOut,
+              ),
+            );
+        _positionAnimation!.addListener(() {
+          setState(() {});
+        });
+        _positionAnimationController!.forward(from: 0.0);
+      }
+      _previousMostRecentBoardT = currentBoardT;
+      _lastKnownPosition = _targetBarPosition;
+    } else {
+      // No change - just update last known position
+      _lastKnownPosition = _targetBarPosition;
+    }
+
+    // Use the animated position value, with fallbacks
+    final barWidth = 300.0 * 0.8; // Leave 10% margin on each side
+    final barPosition =
+        _positionAnimation?.value ??
+        (_lastKnownPosition != 0.0 ? _lastKnownPosition : _targetBarPosition);
+
+    // Update last known position for next frame
+    if (barPosition != 0.0) {
+      _lastKnownPosition = barPosition;
+    }
+
+    return Positioned(
+      left: barPosition,
+      top: 0,
+      bottom: 0,
+      child: IgnorePointer(
+        child: Container(
+          width: barWidth,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [
+                _lightenColor(barColor, 0.1).withValues(alpha: 0.85),
+                barColor.withValues(alpha: 0.9),
+                barColor.withValues(alpha: 0.9),
+                _lightenColor(barColor, 0.1).withValues(alpha: 0.85),
+              ],
+              stops: const [0.0, 0.2, 0.8, 1.0],
+            ),
+            border: Border.symmetric(
+              horizontal: BorderSide(color: barColor, width: 2.0),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _lightenColor(Color color, double amount) {
+    final hslColor = HSLColor.fromColor(color);
+    final lightness = (hslColor.lightness + amount).clamp(0.0, 1.0);
+    return hslColor.withLightness(lightness.toDouble()).toColor();
   }
 }
 

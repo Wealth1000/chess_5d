@@ -637,126 +637,136 @@ class GameProvider extends ChangeNotifier {
     //   'DEBUG GameProvider.undoMove: Stored ${usedBoards.length} used boards',
     // );
 
-    // Undo the move (removes created boards, reactivates used boards)
-    // print('DEBUG GameProvider.undoMove: Calling lastMove.undo()');
-    lastMove.undo();
-
-    // Restore used boards in timeline (undo removes created boards but doesn't restore used boards in timeline)
-    // print(
-    //   'DEBUG GameProvider.undoMove: Restoring ${usedBoards.length} used boards in timeline',
-    // );
-    for (final usedBoard in usedBoards) {
-      // print(
-      //   'DEBUG GameProvider.undoMove: Restoring used board at l=${usedBoard.l}, t=${usedBoard.t}',
-      // );
-      final timeline = _game.getTimeline(usedBoard.l);
-      timeline.setBoard(usedBoard.t, usedBoard);
-    }
-
-    // Restore piece position if this is a regular move (not null move)
-    if (isRegularMove &&
-        sourcePiece != null &&
-        sourcePos != null &&
-        sourceBoard != null) {
-      // print(
-      //   'DEBUG GameProvider.undoMove: Restoring piece position for ${sourcePiece.type}',
-      // );
-      // Find the actual board to restore to (the used board that was reactivated)
-      final restoredBoard = usedBoards.firstWhere(
-        (board) => board.l == sourcePos.l && board.t == sourcePos.t,
-        orElse: () => sourceBoard,
-      );
-
-      // print(
-      //   'DEBUG GameProvider.undoMove: Restored board: l=${restoredBoard.l}, t=${restoredBoard.t}',
-      // );
-
-      // Move piece back to original position on the restored board
-      // print(
-      //   'DEBUG GameProvider.undoMove: Piece current state - board: ${sourcePiece.board != null ? "l=${sourcePiece.board!.l}, t=${sourcePiece.board!.t}, active=${sourcePiece.board!.active}, deleted=${sourcePiece.board!.deleted}" : "null"}, x=${sourcePiece.x}, y=${sourcePiece.y}',
-      // );
-      // print(
-      //   'DEBUG GameProvider.undoMove: Restored board state - l=${restoredBoard.l}, t=${restoredBoard.t}, active=${restoredBoard.active}, deleted=${restoredBoard.deleted}',
-      // );
-
-      // Check if piece is on a deleted board or wrong board
-      if (sourcePiece.board == null ||
-          sourcePiece.board!.deleted ||
-          sourcePiece.board != restoredBoard ||
-          sourcePiece.x != sourcePos.x ||
-          sourcePiece.y != sourcePos.y) {
-        // print(
-        //   'DEBUG GameProvider.undoMove: Moving piece from (${sourcePiece.x}, ${sourcePiece.y}) on board ${sourcePiece.board != null ? "l=${sourcePiece.board!.l}, t=${sourcePiece.board!.t}" : "null"} back to (${sourcePos.x}, ${sourcePos.y}) on restored board l=${restoredBoard.l}, t=${restoredBoard.t}',
-        // );
-
-        // If piece is on a deleted board, we need to manually set it
-        if (sourcePiece.board != null && sourcePiece.board!.deleted) {
-          // print(
-          //   'DEBUG GameProvider.undoMove: Piece is on deleted board - manually removing from old board and placing on restored board',
-          // );
-          // Remove piece from old board if it still exists there
-          if (sourcePiece.board!.getPiece(sourcePiece.x, sourcePiece.y) ==
-              sourcePiece) {
-            sourcePiece.board!.setPiece(sourcePiece.x, sourcePiece.y, null);
-          }
-        }
-
-        sourcePiece.changePosition(restoredBoard, sourcePos.x, sourcePos.y);
-        // print(
-        //   'DEBUG GameProvider.undoMove: Piece moved - new board: l=${sourcePiece.board?.l}, t=${sourcePiece.board?.t}, x=${sourcePiece.x}, y=${sourcePiece.y}',
-        // );
-      }
-      // else {
-      //   print(
-      //     'DEBUG GameProvider.undoMove: Piece already at correct position - no change needed',
-      //   );
-      // }
-    }
-
-    // Update game state after undo (similar to Game.undo())
-    // print(
-    //   'DEBUG GameProvider.undoMove: currentTurnMoves after undo operations: ${_game.currentTurnMoves.length}',
-    // );
-
-    // Safety check: if currentTurnMoves is not empty after undo, something went wrong
-    // The move should have been removed by removeLast() above, so clear any remaining moves
-    if (_game.currentTurnMoves.isNotEmpty) {
-      print(
-        'DEBUG GameProvider.undoMove: WARNING - currentTurnMoves is not empty after undo (${_game.currentTurnMoves.length} moves remaining)',
-      );
-      // print(
-      //   'DEBUG GameProvider.undoMove: Clearing remaining moves to restore move privilege',
-      // );
-      // for (final move in _game.currentTurnMoves) {
-      //   print(
-      //     'DEBUG GameProvider.undoMove: Remaining move - nullMove=${move.nullMove}, sourceBoard=${move.sourceBoard != null ? "l=${move.sourceBoard!.l}, t=${move.sourceBoard!.t}" : "null"}',
-      //   );
-      // }
-      _game.currentTurnMoves.clear();
-    }
-
-    if (_game.currentTurnMoves.isEmpty) {
-      // print(
-      //   'DEBUG GameProvider.undoMove: No more moves - calling movePresent(false)',
-      // );
-      _game.movePresent(false);
-    }
-
-    // print(
-    //   'DEBUG GameProvider.undoMove: Finding checks and checking submit availability',
-    // );
-    _game.findChecks();
-    _game.checkSubmitAvailable();
-
-    // print(
-    //   'DEBUG GameProvider.undoMove: Final state - currentTurnMoves.length=${_game.currentTurnMoves.length}, game.turn=${_game.turn}',
-    // );
-
-    // Clear selection and update legal moves
-    _selectedPiece = null;
-    _legalMoves = [];
+    // Notify UI first so it can capture the current state (including boards that will be deleted)
+    // The UI will store these boards in _previousBoards before they're deleted
     notifyListeners();
-    // print('DEBUG GameProvider.undoMove: Undo completed successfully');
+
+    // Give UI one frame to detect and store the boards before deletion
+    // This ensures the animation system can see the boards in _previousBoards
+    Future.delayed(Duration.zero, () {
+      // Now actually undo the move (removes created boards, reactivates used boards)
+      // print('DEBUG GameProvider.undoMove: Calling lastMove.undo()');
+      lastMove.undo();
+
+      // Restore used boards in timeline (undo removes created boards but doesn't restore used boards in timeline)
+      // print(
+      //   'DEBUG GameProvider.undoMove: Restoring ${usedBoards.length} used boards in timeline',
+      // );
+      for (final usedBoard in usedBoards) {
+        // print(
+        //   'DEBUG GameProvider.undoMove: Restoring used board at l=${usedBoard.l}, t=${usedBoard.t}',
+        // );
+        final timeline = _game.getTimeline(usedBoard.l);
+        timeline.setBoard(usedBoard.t, usedBoard);
+      }
+
+      // Restore piece position if this is a regular move (not null move)
+      if (isRegularMove &&
+          sourcePiece != null &&
+          sourcePos != null &&
+          sourceBoard != null) {
+        // print(
+        //   'DEBUG GameProvider.undoMove: Restoring piece position for ${sourcePiece.type}',
+        // );
+        // Find the actual board to restore to (the used board that was reactivated)
+        final restoredBoard = usedBoards.firstWhere(
+          (board) => board.l == sourcePos.l && board.t == sourcePos.t,
+          orElse: () => sourceBoard,
+        );
+
+        // print(
+        //   'DEBUG GameProvider.undoMove: Restored board: l=${restoredBoard.l}, t=${restoredBoard.t}',
+        // );
+
+        // Move piece back to original position on the restored board
+        // print(
+        //   'DEBUG GameProvider.undoMove: Piece current state - board: ${sourcePiece.board != null ? "l=${sourcePiece.board!.l}, t=${sourcePiece.board!.t}, active=${sourcePiece.board!.active}, deleted=${sourcePiece.board!.deleted}" : "null"}, x=${sourcePiece.x}, y=${sourcePiece.y}',
+        // );
+        // print(
+        //   'DEBUG GameProvider.undoMove: Restored board state - l=${restoredBoard.l}, t=${restoredBoard.t}, active=${restoredBoard.active}, deleted=${restoredBoard.deleted}',
+        // );
+
+        // Check if piece is on a deleted board or wrong board
+        if (sourcePiece.board == null ||
+            sourcePiece.board!.deleted ||
+            sourcePiece.board != restoredBoard ||
+            sourcePiece.x != sourcePos.x ||
+            sourcePiece.y != sourcePos.y) {
+          // print(
+          //   'DEBUG GameProvider.undoMove: Moving piece from (${sourcePiece.x}, ${sourcePiece.y}) on board ${sourcePiece.board != null ? "l=${sourcePiece.board!.l}, t=${sourcePiece.board!.t}" : "null"} back to (${sourcePos.x}, ${sourcePos.y}) on restored board l=${restoredBoard.l}, t=${restoredBoard.t}',
+          // );
+
+          // If piece is on a deleted board, we need to manually set it
+          if (sourcePiece.board != null && sourcePiece.board!.deleted) {
+            // print(
+            //   'DEBUG GameProvider.undoMove: Piece is on deleted board - manually removing from old board and placing on restored board',
+            // );
+            // Remove piece from old board if it still exists there
+            if (sourcePiece.board!.getPiece(sourcePiece.x, sourcePiece.y) ==
+                sourcePiece) {
+              sourcePiece.board!.setPiece(sourcePiece.x, sourcePiece.y, null);
+            }
+          }
+
+          sourcePiece.changePosition(restoredBoard, sourcePos.x, sourcePos.y);
+          // print(
+          //   'DEBUG GameProvider.undoMove: Piece moved - new board: l=${sourcePiece.board?.l}, t=${sourcePiece.board?.t}, x=${sourcePiece.x}, y=${sourcePiece.y}',
+          // );
+        }
+        // else {
+        //   print(
+        //     'DEBUG GameProvider.undoMove: Piece already at correct position - no change needed',
+        //   );
+        // }
+      }
+
+      // Update game state after undo (similar to Game.undo())
+      // print(
+      //   'DEBUG GameProvider.undoMove: currentTurnMoves after undo operations: ${_game.currentTurnMoves.length}',
+      // );
+
+      // Safety check: if currentTurnMoves is not empty after undo, something went wrong
+      // The move should have been removed by removeLast() above, so clear any remaining moves
+      if (_game.currentTurnMoves.isNotEmpty) {
+        print(
+          'DEBUG GameProvider.undoMove: WARNING - currentTurnMoves is not empty after undo (${_game.currentTurnMoves.length} moves remaining)',
+        );
+        // print(
+        //   'DEBUG GameProvider.undoMove: Clearing remaining moves to restore move privilege',
+        // );
+        // for (final move in _game.currentTurnMoves) {
+        //   print(
+        //     'DEBUG GameProvider.undoMove: Remaining move - nullMove=${move.nullMove}, sourceBoard=${move.sourceBoard != null ? "l=${move.sourceBoard!.l}, t=${move.sourceBoard!.t}" : "null"}',
+        //   );
+        // }
+        _game.currentTurnMoves.clear();
+      }
+
+      if (_game.currentTurnMoves.isEmpty) {
+        // print(
+        //   'DEBUG GameProvider.undoMove: No more moves - calling movePresent(false)',
+        // );
+        _game.movePresent(false);
+      }
+
+      // print(
+      //   'DEBUG GameProvider.undoMove: Finding checks and checking submit availability',
+      // );
+      _game.findChecks();
+      _game.checkSubmitAvailable();
+
+      // print(
+      //   'DEBUG GameProvider.undoMove: Final state - currentTurnMoves.length=${_game.currentTurnMoves.length}, game.turn=${_game.turn}',
+      // );
+
+      // Clear selection and update legal moves
+      _selectedPiece = null;
+      _legalMoves = [];
+      notifyListeners();
+      // print('DEBUG GameProvider.undoMove: Undo completed successfully');
+    });
+
+    // Return true immediately (undo is in progress)
     return true;
   }
 
